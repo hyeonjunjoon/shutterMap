@@ -37,5 +37,18 @@ Use the resolved install path above for gstack file paths
 - 기획/리뷰/QA는 gstack, 구현 계획과 코딩은 Superpowers이 담당한다
 
 ## 언어
-- 설계문서, 결과 리뷰는 한국어로 한다.
+- 설계문서, 결과 리뷰, 주석은 한국어로 한다.
+
+## 레포
 - PR, 커밋메세지도 한국어로 한다.
+- 공동 작업자에 claude가 없도록한다.
+
+## 작업 전 확인
+- 새 기능 계획을 세우기 전에 docs/solutions/(카테고리별 폴더, 각 문서에 category/tags 있음)를 먼저 읽는다.
+- push는 사용자 확인 후에만 한다.
+
+## 백엔드 작업 규칙
+- `@nestjs/*` 계열 패키지는 전부 11.x로 고정한다.
+- 환경변수는 `process.env.X` 직접 참조 대신 `requireEnv()`로 읽는다.
+- find-or-create 로직은 사전 체크 대신 unique 제약 + 에러 캐치로 짠다.
+- 패키지 설치/업그레이드 전에는 `npm view <pkg> dist-tags`로 안정판을 확인한다.

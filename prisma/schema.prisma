@@ -1,0 +1,124 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [postgis]
+}
+
+enum AuthProvider {
+  LOCAL
+  KAKAO
+  GOOGLE
+}
+
+enum PhotoVisibility {
+  EXACT
+  FUZZY
+  HIDDEN
+}
+
+enum LocationSource {
+  EXIF
+  MANUAL
+}
+
+enum PhotoStatus {
+  ACTIVE
+  HIDDEN
+  DELETED
+}
+
+enum ReportReason {
+  PRIVACY
+  INAPPROPRIATE
+  COPYRIGHT
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  ACTIONED
+}
+
+model User {
+  id              String       @id @default(uuid())
+  // Not globally unique: email is scoped per provider so a Kakao/Google
+  // login can create a separate account from a LOCAL account with the
+  // same email, matching PRD 기능6/Review Focus #4 (MVP does not merge
+  // accounts across providers by email).
+  email           String
+  passwordHash    String?
+  provider        AuthProvider @default(LOCAL)
+  providerId      String?
+  ownedCameraRaw  String?
+  ownedCameraName String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  photos  Photo[]
+  likes   Like[]
+  reports Report[]
+
+  @@unique([provider, providerId])
+  @@unique([provider, email])
+}
+
+model Photo {
+  id             String           @id @default(uuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id])
+  originalKey    String
+  servingKey     String?
+  thumbnailKey   String?
+  cameraRaw      String?
+  cameraName     String?
+  lensRaw        String?
+  lensName       String?
+  focalLength    Float?
+  aperture       Float?
+  shutterSpeed   String?
+  iso            Int?
+  takenAt        DateTime?
+  note           String?
+  locationSource LocationSource?
+  // Prisma has no first-class geography type: this column is written/read
+  // with $executeRaw / $queryRaw in PhotoLocationService (a later plan),
+  // not through the generated Prisma Client API.
+  location       Unsupported("geography(Point, 4326)")?
+  visibility     PhotoVisibility  @default(FUZZY)
+  fuzzyOffsetLat Float?
+  fuzzyOffsetLng Float?
+  status         PhotoStatus      @default(ACTIVE)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  likes   Like[]
+  reports Report[]
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  photoId   String
+  user      User     @relation(fields: [userId], references: [id])
+  photo     Photo    @relation(fields: [photoId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, photoId])
+}
+
+model Report {
+  id         String       @id @default(uuid())
+  photoId    String
+  reporterId String
+  photo      Photo        @relation(fields: [photoId], references: [id])
+  reporter   User         @relation(fields: [reporterId], references: [id])
+  reason     ReportReason
+  detail     String?
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+}
