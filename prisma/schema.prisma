@@ -46,7 +46,11 @@ enum ReportStatus {
 
 model User {
   id              String       @id @default(uuid())
-  email           String       @unique
+  // Not globally unique: email is scoped per provider so a Kakao/Google
+  // login can create a separate account from a LOCAL account with the
+  // same email, matching PRD 기능6/Review Focus #4 (MVP does not merge
+  // accounts across providers by email).
+  email           String
   passwordHash    String?
   provider        AuthProvider @default(LOCAL)
   providerId      String?
@@ -60,6 +64,7 @@ model User {
   reports Report[]
 
   @@unique([provider, providerId])
+  @@unique([provider, email])
 }
 
 model Photo {

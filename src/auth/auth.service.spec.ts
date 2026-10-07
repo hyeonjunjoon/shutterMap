@@ -1,9 +1,17 @@
 import { Test } from '@nestjs/testing';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+function uniqueConstraintError() {
+  return new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+    code: 'P2002',
+    clientVersion: 'test',
+  });
+}
 
 describe('AuthService.register', () => {
   let service: AuthService;
@@ -22,7 +30,6 @@ describe('AuthService.register', () => {
   });
 
   it('creates a user with a hashed password', async () => {
-    prisma.user.findUnique.mockResolvedValue(null);
     prisma.user.create.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
 
     const result = await service.register({ email: 'a@b.com', password: 'password123' });
@@ -33,11 +40,17 @@ describe('AuthService.register', () => {
   });
 
   it('rejects a duplicate email with ConflictException', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'existing' });
+    prisma.user.create.mockRejectedValue(uniqueConstraintError());
 
     await expect(service.register({ email: 'a@b.com', password: 'password123' })).rejects.toThrow(
       ConflictException,
     );
+  });
+
+  it('rethrows non-uniqueness errors as-is', async () => {
+    prisma.user.create.mockRejectedValue(new Error('db is down'));
+
+    await expect(service.register({ email: 'a@b.com', password: 'password123' })).rejects.toThrow('db is down');
   });
 });
 

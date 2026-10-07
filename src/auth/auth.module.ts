@@ -6,12 +6,13 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { KakaoStrategy } from './strategies/kakao.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
+import { getJwtSecret } from './jwt-secret';
 
 @Module({
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET ?? 'dev-only-change-me',
+      secret: getJwtSecret(),
       signOptions: { expiresIn: '7d' },
     }),
   ],
