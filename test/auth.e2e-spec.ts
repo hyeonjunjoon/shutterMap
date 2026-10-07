@@ -34,4 +34,12 @@ describe('GET /auth/me', () => {
     const res = await agent.get('/auth/me').expect(200);
     expect(res.body.email).toBe('me-test@example.com');
   });
+
+  it('clears the session cookie on logout', async () => {
+    const agent = request.agent(app.getHttpServer());
+    await agent.post('/auth/register').send({ email: 'logout-test@example.com', password: 'password123' });
+    await agent.post('/auth/login').send({ email: 'logout-test@example.com', password: 'password123' });
+    await agent.post('/auth/logout').expect(200);
+    await agent.get('/auth/me').expect(401);
+  });
 });
