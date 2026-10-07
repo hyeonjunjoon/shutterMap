@@ -129,3 +129,46 @@ describe('Auth — final review fixes', () => {
     expect(socialUser.email).toBe('shared-email@example.com');
   });
 });
+
+// Regression: ISSUE-002, ISSUE-003 — found by /qa on 2026-10-07
+// Report: .gstack/qa-reports/qa-report-auth-module-2026-10-07.md
+describe('Auth — QA findings', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  const QA_TEST_EMAILS = ['casetest@example.com', 'bcrypttest@example.com'];
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = moduleRef.createNestApplication();
+    app.use(cookieParser());
+    await app.init();
+    prisma = moduleRef.get(PrismaService);
+    await prisma.user.deleteMany({ where: { email: { in: QA_TEST_EMAILS } } });
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { email: { in: QA_TEST_EMAILS } } });
+    await app.close();
+  });
+
+  it('ISSUE-002: logs in with an email that differs only by case from registration', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({ email: 'CaseTest@Example.com', password: 'password123' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: 'casetest@example.com', password: 'password123' })
+      .expect(201);
+  });
+
+  it('ISSUE-003: rejects a password longer than bcrypt\'s 72-byte limit instead of silently truncating it', async () => {
+    const tooLong = 'a'.repeat(73);
+    return request(app.getHttpServer())
+      .post('/auth/register')
+      .send({ email: 'bcrypttest@example.com', password: tooLong })
+      .expect(400);
+  });
+});

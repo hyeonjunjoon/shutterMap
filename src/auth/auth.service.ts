@@ -10,6 +10,13 @@ function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
+// 가입 때 쓴 대소문자와 로그인 때 입력한 대소문자가 다르면 Postgres는 다른
+// 값으로 본다(기본 collation이 대소문자 구분). 이메일은 저장/조회 전 항상
+// 정규화해서, 사람이 가입할 때와 로그인할 때 다르게 타이핑해도 같은 계정으로 본다.
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -18,10 +25,11 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<{ id: string; email: string }> {
+    const email = normalizeEmail(dto.email);
     const passwordHash = await bcrypt.hash(dto.password, 10);
     try {
       const user = await this.prisma.user.create({
-        data: { email: dto.email, passwordHash, provider: 'LOCAL' },
+        data: { email, passwordHash, provider: 'LOCAL' },
       });
       return { id: user.id, email: user.email };
     } catch (error) {
@@ -36,7 +44,7 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<{ token: string }> {
     const user = await this.prisma.user.findUnique({
-      where: { provider_email: { provider: 'LOCAL', email: dto.email } },
+      where: { provider_email: { provider: 'LOCAL', email: normalizeEmail(dto.email) } },
     });
     // 계정 존재 여부를 노출하지 않기 위해 "없음"과 "비밀번호 틀림"을 같은 메시지로 처리
     const INVALID = '이메일 또는 비밀번호가 올바르지 않습니다.';
@@ -54,8 +62,9 @@ export class AuthService {
   async findOrCreateSocialUser(
     provider: 'KAKAO' | 'GOOGLE',
     providerId: string,
-    email: string,
+    rawEmail: string,
   ): Promise<{ id: string; email: string }> {
+    const email = normalizeEmail(rawEmail);
     const existing = await this.prisma.user.findUnique({
       where: { provider_providerId: { provider, providerId } },
     });
