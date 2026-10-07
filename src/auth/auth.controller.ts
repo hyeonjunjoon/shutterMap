@@ -50,4 +50,20 @@ export class AuthController {
     res.cookie('session', token, SESSION_COOKIE_OPTIONS);
     res.redirect('/'); // 프론트 메인으로
   }
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  googleLogin() {}
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleCallback(
+    @Req() req: Request & { user: { providerId: string; email: string } },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const user = await this.authService.findOrCreateSocialUser('GOOGLE', req.user.providerId, req.user.email);
+    const token = await this.authService.issueSessionToken(user.id, user.email);
+    res.cookie('session', token, SESSION_COOKIE_OPTIONS);
+    res.redirect('/');
+  }
 }
