@@ -38,4 +38,25 @@ export class AuthService {
     const token = await this.jwtService.signAsync({ sub: user.id, email: user.email });
     return { token };
   }
+
+  async findOrCreateSocialUser(
+    provider: 'KAKAO' | 'GOOGLE',
+    providerId: string,
+    email: string,
+  ): Promise<{ id: string; email: string }> {
+    const existing = await this.prisma.user.findUnique({
+      where: { provider_providerId: { provider, providerId } },
+    });
+    if (existing) {
+      return { id: existing.id, email: existing.email };
+    }
+    const created = await this.prisma.user.create({
+      data: { email, provider, providerId },
+    });
+    return { id: created.id, email: created.email };
+  }
+
+  async issueSessionToken(userId: string, email: string): Promise<string> {
+    return this.jwtService.signAsync({ sub: userId, email });
+  }
 }

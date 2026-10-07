@@ -68,3 +68,39 @@ describe('AuthService.login', () => {
     expect(result.token).toBeDefined();
   });
 });
+
+describe('AuthService.findOrCreateSocialUser', () => {
+  let service: AuthService;
+  let prisma: { user: { findUnique: jest.Mock; create: jest.Mock } };
+
+  beforeEach(async () => {
+    prisma = { user: { findUnique: jest.fn(), create: jest.fn() } };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: JwtService, useValue: { signAsync: jest.fn() } },
+      ],
+    }).compile();
+    service = moduleRef.get(AuthService);
+  });
+
+  it('creates a new user on first social login', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    prisma.user.create.mockResolvedValue({ id: 'u2', email: 'social@example.com' });
+
+    const user = await service.findOrCreateSocialUser('KAKAO', 'kakao-123', 'social@example.com');
+
+    expect(prisma.user.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ provider: 'KAKAO', providerId: 'kakao-123' }),
+    });
+    expect(user.id).toBe('u2');
+  });
+
+  it('returns the existing user on repeat social login', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'u2', email: 'social@example.com' });
+    const user = await service.findOrCreateSocialUser('KAKAO', 'kakao-123', 'social@example.com');
+    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(user.id).toBe('u2');
+  });
+});
