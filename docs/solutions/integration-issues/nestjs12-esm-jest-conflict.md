@@ -1,3 +1,13 @@
+---
+category: integration-issues
+tags: [nestjs, jest, esm, cjs, typescript, ts-jest]
+related_files:
+  - tsconfig.json
+  - test/jest-e2e.json
+  - jest.config.ts
+  - package.json
+---
+
 # NestJS 12(ESM) vs Jest — 테스트 전체가 깨져 있던 문제
 
 ## 문제

@@ -1,3 +1,12 @@
+---
+category: integration-issues
+tags: [prisma, dependency-version, breaking-change, npm]
+related_files:
+  - prisma/schema.prisma
+  - prisma7.config.ts
+  - src/prisma/prisma.service.ts
+---
+
 # Prisma 7의 변경사항들 (버전 가정이 깨진 사례)
 
 ## 문제

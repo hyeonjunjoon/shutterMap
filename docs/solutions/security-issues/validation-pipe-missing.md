@@ -1,3 +1,12 @@
+---
+category: security-issues
+tags: [nestjs, validation, input-validation, class-validator]
+related_files:
+  - src/app.module.ts
+  - src/auth/dto/register.dto.ts
+  - src/auth/dto/login.dto.ts
+---
+
 # class-validator 데코레이터가 장식일 뿐이었던 문제
 
 ## 문제

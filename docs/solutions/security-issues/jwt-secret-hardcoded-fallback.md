@@ -1,3 +1,13 @@
+---
+category: security-issues
+tags: [jwt, secret-management, hardcoded-secret, env-var]
+related_files:
+  - src/auth/jwt-secret.ts
+  - src/auth/require-env.ts
+  - src/auth/auth.module.ts
+  - src/auth/strategies/jwt.strategy.ts
+---
+
 # JWT_SECRET 하드코딩 폴백
 
 ## 문제

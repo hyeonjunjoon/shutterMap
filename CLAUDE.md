@@ -44,14 +44,5 @@ Use the resolved install path above for gstack file paths
 - 공동 작업자에 claude가 없도록한다.
 
 ## 작업 전 확인
-- 새 기능 계획을 세우기 전에 docs/solutions/를 먼저 읽는다.
+- 새 기능 계획을 세우기 전에 docs/solutions/(카테고리별 폴더, 각 문서에 category/tags 있음)를 먼저 읽는다.
 - push는 사용자 확인 후에만 한다.
-
-## 기술 규칙 (사고에서 나온 것, docs/solutions/ 참고)
-- `@nestjs/*`는 11.x(CJS)로 고정한다. 12.x는 ESM이라 Jest가 못 읽는다 — 버전 명시 없이 설치하지 않는다.
-- 패키지를 새로 깔거나 메이저를 올릴 땐 `npm view <pkg> dist-tags`로 latest가 안정판인지 먼저 확인한다.
-- DB는 Prisma 마이그레이션으로만 바꾼다 (확장 설치 등도 schema.prisma에 선언, 직접 `psql`로 손대지 않는다).
-- 커밋 전 `npm run typecheck`와 `npm run build`도 돌린다 — ts-jest는 느슨해서 테스트만으론 못 잡는 타입 에러가 있다.
-- find-or-create류 로직은 사전 체크(`findUnique`) 대신 처음부터 unique 제약 + P2002 캐치로 짠다.
-- 비밀값(JWT_SECRET 등)은 `?? '기본값'` 폴백 없이, 없으면 기동 시 바로 throw한다.
-- 사람이 입력하는 이메일은 저장·조회 전에 항상 정규화(trim+lowercase)한다.

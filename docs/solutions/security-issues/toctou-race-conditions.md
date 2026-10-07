@@ -1,3 +1,10 @@
+---
+category: security-issues
+tags: [race-condition, toctou, concurrency, prisma, find-or-create]
+related_files:
+  - src/auth/auth.service.ts
+---
+
 # find-or-create 패턴의 TOCTOU 레이스 — 두 번 발견됨
 
 ## 문제

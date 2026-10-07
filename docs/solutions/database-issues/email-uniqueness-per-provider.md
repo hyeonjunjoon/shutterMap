@@ -1,3 +1,11 @@
+---
+category: database-issues
+tags: [prisma-schema, unique-constraint, oauth, requirements-mismatch]
+related_files:
+  - prisma/schema.prisma
+  - src/auth/auth.service.ts
+---
+
 # 스키마 자체가 PRD 요구사항과 충돌한 사례 (이메일 전역 unique)
 
 ## 문제

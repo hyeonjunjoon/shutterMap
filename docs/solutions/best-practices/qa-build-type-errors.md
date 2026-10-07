@@ -1,3 +1,11 @@
+---
+category: best-practices
+tags: [typescript, typecheck, ts-jest, build, ci-gap]
+related_files:
+  - package.json
+  - src/auth/require-env.ts
+---
+
 # /qa에서 발견: npm run build가 타입 에러로 실패
 
 ## 문제

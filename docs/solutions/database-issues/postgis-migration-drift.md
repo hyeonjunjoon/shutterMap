@@ -1,3 +1,11 @@
+---
+category: database-issues
+tags: [postgis, prisma-migrate, postgresql, destructive-operation]
+related_files:
+  - prisma/schema.prisma
+  - prisma/migrations
+---
+
 # PostGIS 수동 설치로 생긴 마이그레이션 drift
 
 ## 문제

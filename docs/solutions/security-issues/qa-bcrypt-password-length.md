@@ -1,3 +1,10 @@
+---
+category: security-issues
+tags: [bcrypt, password-hashing, validation, class-validator]
+related_files:
+  - src/auth/dto/register.dto.ts
+---
+
 # /qa에서 발견: bcrypt 72바이트 이후 비밀번호가 조용히 잘림
 
 ## 문제

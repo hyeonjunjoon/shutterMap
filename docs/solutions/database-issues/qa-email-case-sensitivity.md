@@ -1,3 +1,10 @@
+---
+category: database-issues
+tags: [email-normalization, postgresql, case-sensitivity, collation]
+related_files:
+  - src/auth/auth.service.ts
+---
+
 # /qa에서 발견: 이메일 대소문자 다르면 로그인 실패
 
 ## 문제
