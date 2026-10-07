@@ -116,4 +116,16 @@ describe('AuthService.findOrCreateSocialUser', () => {
     expect(prisma.user.create).not.toHaveBeenCalled();
     expect(user.id).toBe('u2');
   });
+
+  it('recovers when two concurrent social logins race to create the same account (TOCTOU)', async () => {
+    // 둘 다 findUnique에서 null을 봤다고 가정 (경쟁 상황)
+    prisma.user.findUnique
+      .mockResolvedValueOnce(null) // 최초 조회
+      .mockResolvedValueOnce({ id: 'u2', email: 'social@example.com' }); // create 실패 후 재조회
+    prisma.user.create.mockRejectedValue(uniqueConstraintError());
+
+    const user = await service.findOrCreateSocialUser('KAKAO', 'kakao-123', 'social@example.com');
+
+    expect(user.id).toBe('u2');
+  });
 });

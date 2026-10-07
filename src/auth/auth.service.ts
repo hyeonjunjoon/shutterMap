@@ -62,10 +62,25 @@ export class AuthService {
     if (existing) {
       return { id: existing.id, email: existing.email };
     }
-    const created = await this.prisma.user.create({
-      data: { email, provider, providerId },
-    });
-    return { id: created.id, email: created.email };
+    try {
+      const created = await this.prisma.user.create({
+        data: { email, provider, providerId },
+      });
+      return { id: created.id, email: created.email };
+    } catch (error) {
+      // register()와 같은 TOCTOU 레이스 — 동시 OAuth 콜백(더블클릭, 중복 탭)이
+      // 둘 다 findUnique에서 null을 본 뒤 둘 다 create를 시도할 수 있다.
+      // 진 쪽은 터지지 않고, 승자가 만든 레코드를 재조회해 반환한다.
+      if (isUniqueConstraintError(error)) {
+        const winner = await this.prisma.user.findUnique({
+          where: { provider_providerId: { provider, providerId } },
+        });
+        if (winner) {
+          return { id: winner.id, email: winner.email };
+        }
+      }
+      throw error; // winner가 없으면(이론상 불가하지만) 원래 에러를 그대로 던진다
+    }
   }
 
   async issueSessionToken(userId: string, email: string): Promise<string> {
