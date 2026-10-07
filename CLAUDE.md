@@ -37,5 +37,8 @@ Use the resolved install path above for gstack file paths
 - 기획/리뷰/QA는 gstack, 구현 계획과 코딩은 Superpowers이 담당한다
 
 ## 언어
-- 설계문서, 결과 리뷰는 한국어로 한다.
+- 설계문서, 결과 리뷰, 주석은 한국어로 한다.
+
+## 레포
 - PR, 커밋메세지도 한국어로 한다.
+- 공동 작업자에 claude가 없도록한다.
