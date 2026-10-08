@@ -1,6 +1,9 @@
 import {
   BadRequestException,
+  Body,
   Controller,
+  Param,
+  Patch,
   Post,
   Req,
   UnsupportedMediaTypeException,
@@ -12,6 +15,8 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PhotoUploadService } from './services/photo-upload.service';
+import { PhotoLocationService } from './services/photo-location.service';
+import { SetLocationDto } from './dto/set-location.dto';
 
 const ALLOWED_MIMETYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif'];
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -21,7 +26,10 @@ type AuthedRequest = Request & { user: { id: string; email: string } };
 
 @Controller('photos')
 export class PhotosController {
-  constructor(private readonly photoUploadService: PhotoUploadService) {}
+  constructor(
+    private readonly photoUploadService: PhotoUploadService,
+    private readonly photoLocationService: PhotoLocationService,
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Post()
@@ -42,5 +50,11 @@ export class PhotosController {
       throw new BadRequestException('업로드할 파일이 필요합니다.');
     }
     return this.photoUploadService.uploadPhotos(req.user.id, files);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/location')
+  setLocation(@Param('id') id: string, @Body() dto: SetLocationDto, @Req() req: AuthedRequest) {
+    return this.photoLocationService.setLocation(id, req.user.id, { lat: dto.lat, lng: dto.lng }, 'MANUAL');
   }
 }
