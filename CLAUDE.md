@@ -54,3 +54,4 @@ Use the resolved install path above for gstack file paths
 - 패키지 설치/업그레이드 전에는 `npm view <pkg> dist-tags`로 안정판을 확인한다.
 - `npm test`가 통과해도 `npm run typecheck`와 `npm run build`까지 돌린다 — ts-jest가 못 잡는 타입/빌드 에러가 있다.
 - 동작이 불확실한 라이브러리 조합(네이티브 바인딩, 버전별 기능차이)은 계획 전에 스크래치에서 스파이크로 직접 확인한다.
+- 유저 범위 없는 전역 조회 API의 e2e 테스트는 다른 파일과 공유되는 값(카메라명 등) 대신 파일 전용 고유값을 쓰고, 배열 전체 비교 대신 id 존재 여부로 검증한다.
