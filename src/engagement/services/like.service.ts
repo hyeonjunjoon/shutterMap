@@ -27,8 +27,9 @@ export class LikeService {
       liked = true;
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error;
-      // 동시에 같은 사용자가 두 번 토글해서 create가 unique 제약에 걸렸다는 뜻 —
-      // 이미 좋아요가 있는 상태이므로 토글 의미상 지운다.
+      // unique 제약 위반 = 이미 좋아요가 있다는 뜻 — 일반적인 "취소" 경로(두 번째
+      // 클릭)와 동시 요청 레이스(동시에 두 번 호출) 둘 다 여기로 들어온다. 둘 다
+      // 토글 의미상 지우는 게 맞다.
       await this.prisma.like.deleteMany({ where: { userId, photoId } });
       liked = false;
     }

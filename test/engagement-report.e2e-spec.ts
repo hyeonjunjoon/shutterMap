@@ -13,6 +13,7 @@ describe('POST /photos/:id/reports', () => {
   let prisma: PrismaService;
   let reporterId: string;
   let photoId: string;
+  let hiddenPhotoId: string;
 
   async function loginAgent(email: string) {
     const agent = request.agent(app.getHttpServer());
@@ -33,6 +34,11 @@ describe('POST /photos/:id/reports', () => {
 
     const photo = await prisma.photo.create({ data: { userId: reporterId, originalKey: 'engagement-report-k' } });
     photoId = photo.id;
+
+    const hiddenPhoto = await prisma.photo.create({
+      data: { userId: reporterId, originalKey: 'engagement-report-hidden-k', status: 'HIDDEN' },
+    });
+    hiddenPhotoId = hiddenPhoto.id;
   });
 
   afterAll(async () => {
@@ -69,6 +75,26 @@ describe('POST /photos/:id/reports', () => {
   it('rejects reason OTHER with an empty detail with 400', async () => {
     const agent = await loginAgent(REPORTER_EMAIL);
     await agent.post(`/photos/${photoId}/reports`).send({ reason: 'OTHER', detail: '' }).expect(400);
+  });
+
+  it('rejects reason OTHER with a whitespace-only detail with 400', async () => {
+    const agent = await loginAgent(REPORTER_EMAIL);
+    await agent.post(`/photos/${photoId}/reports`).send({ reason: 'OTHER', detail: '   ' }).expect(400);
+  });
+
+  it('rejects a non-string detail with 400 instead of a 500 from the DB layer', async () => {
+    const agent = await loginAgent(REPORTER_EMAIL);
+    await agent.post(`/photos/${photoId}/reports`).send({ reason: 'PRIVACY', detail: 123 }).expect(400);
+  });
+
+  it('accepts a report on a HIDDEN photo and does not touch the photo status', async () => {
+    const agent = await loginAgent(REPORTER_EMAIL);
+    const res = await agent.post(`/photos/${hiddenPhotoId}/reports`).send({ reason: 'PRIVACY' }).expect(201);
+
+    expect(res.body.status).toBe('PENDING');
+
+    const photo = await prisma.photo.findUniqueOrThrow({ where: { id: hiddenPhotoId } });
+    expect(photo.status).toBe('HIDDEN');
   });
 
   it('accepts a non-OTHER reason with no detail and creates a PENDING report', async () => {
