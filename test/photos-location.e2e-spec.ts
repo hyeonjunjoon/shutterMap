@@ -70,4 +70,17 @@ describe('PATCH /photos/:id/location', () => {
     const photo = await prisma.photo.findUniqueOrThrow({ where: { id: photoId } });
     expect(photo.locationSource).toBe('MANUAL');
   });
+
+  it('fills in a fuzzy offset for a no-gps photo left at the default FUZZY visibility', async () => {
+    // 이 사진은 visibility 기본값(FUZZY)을 그대로 두고, GPS 없이 수동 위치만 등록하는
+    // 가장 흔한 케이스다 — 이 경우에도 지도에 핀이 떠야 한다.
+    const photo = await prisma.photo.create({ data: { userId: ownerId, originalKey: 'k2' } });
+    const agent = await loginAgent(OWNER_EMAIL);
+
+    await agent.patch(`/photos/${photo.id}/location`).send({ lat: 10, lng: 10 }).expect(200);
+
+    const updated = await prisma.photo.findUniqueOrThrow({ where: { id: photo.id } });
+    expect(updated.fuzzyOffsetLat).not.toBeNull();
+    expect(updated.fuzzyOffsetLng).not.toBeNull();
+  });
 });

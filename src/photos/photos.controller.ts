@@ -60,8 +60,11 @@ export class PhotosController {
 
   @UseGuards(JwtAuthGuard)
   @Patch(':id/location')
-  setLocation(@Param('id') id: string, @Body() dto: SetLocationDto, @Req() req: AuthedRequest) {
-    return this.photoLocationService.setLocation(id, req.user.id, { lat: dto.lat, lng: dto.lng }, 'MANUAL');
+  async setLocation(@Param('id') id: string, @Body() dto: SetLocationDto, @Req() req: AuthedRequest) {
+    await this.photoLocationService.setLocation(id, req.user.id, { lat: dto.lat, lng: dto.lng }, 'MANUAL');
+    // 업로드 경로(PhotoUploadService)와 동일한 규칙: 위치가 막 생겼는데 공개범위가
+    // 이미(혹은 기본값으로) FUZZY면 여기서 오프셋을 채워야 지도에 핀이 뜬다.
+    await this.photoVisibilityService.ensureFuzzyOffset(id);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -120,4 +120,34 @@ describe('PhotoLocationService + PhotoVisibilityService', () => {
       visibilityService.setVisibility(photo.id, otherUserId, 'HIDDEN'),
     ).rejects.toMatchObject({ status: 403 });
   });
+
+  it('setLocation clears a stale fuzzy offset when the coordinates actually change', async () => {
+    const photo = await createBarePhoto();
+    await locationService.setLocation(photo.id, ownerId, { lat: 37.5, lng: 127.0 }, 'EXIF');
+    await visibilityService.ensureFuzzyOffset(photo.id);
+    const withFirstOffset = await prisma.photo.findUniqueOrThrow({ where: { id: photo.id } });
+    expect(withFirstOffset.fuzzyOffsetLat).not.toBeNull();
+
+    // 완전히 다른 좌표로 위치를 변경 — 기존 오프셋은 옛 좌표 기준이라 그대로 두면
+    // "사용자가 떠나려 한 바로 그 장소"를 계속 가리키게 된다.
+    await locationService.setLocation(photo.id, ownerId, { lat: 1.0, lng: 1.0 }, 'MANUAL');
+    const afterMove = await prisma.photo.findUniqueOrThrow({ where: { id: photo.id } });
+    expect(afterMove.fuzzyOffsetLat).toBeNull();
+    expect(afterMove.fuzzyOffsetLng).toBeNull();
+  });
+
+  it('setLocation keeps the existing fuzzy offset when the coordinates do not actually change', async () => {
+    const photo = await createBarePhoto();
+    await locationService.setLocation(photo.id, ownerId, { lat: 37.5, lng: 127.0 }, 'EXIF');
+    await visibilityService.ensureFuzzyOffset(photo.id);
+    const before = await prisma.photo.findUniqueOrThrow({ where: { id: photo.id } });
+
+    // 같은 좌표로 다시 저장 — 오프셋을 재생성하면 같은 원본 위치를 기준으로 한
+    // 또 다른 노출 좌표가 공개되어, 여러 시점의 평균으로 원본이 역산될 위험이 생긴다.
+    await locationService.setLocation(photo.id, ownerId, { lat: 37.5, lng: 127.0 }, 'MANUAL');
+    const after = await prisma.photo.findUniqueOrThrow({ where: { id: photo.id } });
+
+    expect(after.fuzzyOffsetLat).toBe(before.fuzzyOffsetLat);
+    expect(after.fuzzyOffsetLng).toBe(before.fuzzyOffsetLng);
+  });
 });
