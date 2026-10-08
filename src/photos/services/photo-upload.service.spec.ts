@@ -23,7 +23,7 @@ describe('PhotoUploadService.uploadPhotos', () => {
   };
   let exifService: { parse: jest.Mock };
   let imageProcessingService: { process: jest.Mock };
-  let r2: { uploadBuffer: jest.Mock };
+  let r2: { uploadBuffer: jest.Mock; uploadOriginal: jest.Mock };
   let photoLocationService: { setLocation: jest.Mock };
   let photoVisibilityService: { ensureFuzzyOffset: jest.Mock };
 
@@ -47,7 +47,10 @@ describe('PhotoUploadService.uploadPhotos', () => {
     imageProcessingService = {
       process: jest.fn().mockResolvedValue({ serving: Buffer.from('s'), thumbnail: Buffer.from('t') }),
     };
-    r2 = { uploadBuffer: jest.fn().mockResolvedValue(undefined) };
+    r2 = {
+      uploadBuffer: jest.fn().mockResolvedValue(undefined),
+      uploadOriginal: jest.fn().mockResolvedValue(undefined),
+    };
     photoLocationService = { setLocation: jest.fn().mockResolvedValue(undefined) };
     photoVisibilityService = { ensureFuzzyOffset: jest.fn().mockResolvedValue(undefined) };
 
@@ -65,10 +68,15 @@ describe('PhotoUploadService.uploadPhotos', () => {
     service = moduleRef.get(PhotoUploadService);
   });
 
-  it('uploads original/serving/thumbnail to R2 and creates a Photo row with parsed EXIF fields', async () => {
+  it('uploads serving/thumbnail to the public bucket and the original to the private bucket', async () => {
     const results = await service.uploadPhotos('user-1', [fakeFile('image/jpeg')]);
 
-    expect(r2.uploadBuffer).toHaveBeenCalledTimes(3);
+    // serving + thumbnail only — the original must NEVER go through the public-bucket upload path
+    expect(r2.uploadBuffer).toHaveBeenCalledTimes(2);
+    expect(r2.uploadOriginal).toHaveBeenCalledTimes(1);
+    const [originalKey] = r2.uploadOriginal.mock.calls[0];
+    expect(originalKey).toMatch(/\/original\.jpg$/);
+
     const createArgs = prisma.photo.create.mock.calls[0][0].data;
     expect(createArgs.userId).toBe('user-1');
     expect(createArgs.cameraRaw).toBe('ILCE-7M4');

@@ -18,7 +18,11 @@ describe('POST /photos', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(R2StorageService)
-      .useValue({ uploadBuffer: jest.fn().mockResolvedValue(undefined), buildPublicUrl: (k: string) => `https://cdn.test/${k}` })
+      .useValue({
+        uploadBuffer: jest.fn().mockResolvedValue(undefined),
+        uploadOriginal: jest.fn().mockResolvedValue(undefined),
+        buildPublicUrl: (k: string) => `https://cdn.test/${k}`,
+      })
       .compile();
     app = moduleRef.createNestApplication();
     app.use(cookieParser());

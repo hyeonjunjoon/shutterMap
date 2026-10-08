@@ -38,7 +38,9 @@ export class PhotoUploadService {
       const servingKey = `photos/${userId}/${id}/serving.jpg`;
       const thumbnailKey = `photos/${userId}/${id}/thumbnail.jpg`;
 
-      await this.r2.uploadBuffer(originalKey, file.buffer, file.mimetype);
+      // 원본은 GPS가 그대로 남아 있어 비공개 버킷으로만 업로드한다 — 공개 버킷으로
+      // 보내면 공개 URL로 원본을 추측해 fuzzy/hidden을 무력화할 수 있다.
+      await this.r2.uploadOriginal(originalKey, file.buffer, file.mimetype);
       await this.r2.uploadBuffer(servingKey, processed.serving, 'image/jpeg');
       await this.r2.uploadBuffer(thumbnailKey, processed.thumbnail, 'image/jpeg');
 
