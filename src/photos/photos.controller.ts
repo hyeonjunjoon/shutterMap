@@ -16,7 +16,9 @@ import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PhotoUploadService } from './services/photo-upload.service';
 import { PhotoLocationService } from './services/photo-location.service';
+import { PhotoVisibilityService } from './services/photo-visibility.service';
 import { SetLocationDto } from './dto/set-location.dto';
+import { SetVisibilityDto } from './dto/set-visibility.dto';
 
 const ALLOWED_MIMETYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif'];
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -29,6 +31,7 @@ export class PhotosController {
   constructor(
     private readonly photoUploadService: PhotoUploadService,
     private readonly photoLocationService: PhotoLocationService,
+    private readonly photoVisibilityService: PhotoVisibilityService,
   ) {}
 
   @UseGuards(JwtAuthGuard)
@@ -56,5 +59,11 @@ export class PhotosController {
   @Patch(':id/location')
   setLocation(@Param('id') id: string, @Body() dto: SetLocationDto, @Req() req: AuthedRequest) {
     return this.photoLocationService.setLocation(id, req.user.id, { lat: dto.lat, lng: dto.lng }, 'MANUAL');
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/visibility')
+  setVisibility(@Param('id') id: string, @Body() dto: SetVisibilityDto, @Req() req: AuthedRequest) {
+    return this.photoVisibilityService.setVisibility(id, req.user.id, dto.visibility);
   }
 }
