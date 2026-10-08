@@ -20,6 +20,9 @@ export interface GalleryPage {
 }
 
 const DEFAULT_LIMIT = 20;
+// 인증 없이 호출 가능한 전역 조회라서, 클라이언트가 큰 수를 요청해도 한 번에
+// 긁어가는 양을 제한한다.
+const MAX_LIMIT = 50;
 
 @Injectable()
 export class DiscoveryGalleryService {
@@ -33,8 +36,9 @@ export class DiscoveryGalleryService {
     filters: SharedPhotoFilters,
     sort: GallerySortOption,
     cursor: string | undefined,
-    limit: number = DEFAULT_LIMIT,
+    requestedLimit: number = DEFAULT_LIMIT,
   ): Promise<GalleryPage> {
+    const limit = Math.min(requestedLimit, MAX_LIMIT);
     const where = this.photoFilterService.toPrismaWhere(filters);
     const orderBy =
       sort === 'likes'

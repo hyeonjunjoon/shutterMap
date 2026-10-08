@@ -88,16 +88,44 @@ describe('GET /discovery/gallery', () => {
   });
 
   it('ignores an unexpected region/bbox-like param instead of using it to filter (whitelist strip)', async () => {
+    const camera = 'gallery-whitelist-test-camera';
+    // 위치가 전혀 없는(location: null) 사진 — bbox가 실제로 필터로 쓰인다면 당연히
+    // 빠져야 한다. "그래도 결과에 들어있다"로 bbox가 전혀 영향을 안 준다는 걸
+    // 직접 증명한다 (리뷰 발견: 기존 테스트는 200 + 배열 타입만 봐서 실제로는
+    // 아무것도 증명하지 못했음).
+    const photo = await prisma.photo.create({ data: { userId, originalKey: 'k', cameraName: camera } });
+
     const res = await request(app.getHttpServer())
       .get('/discovery/gallery')
-      .query({ minLat: '37', maxLat: '38', minLng: '127', maxLng: '128' })
+      .query({ cameraName: camera, minLat: '37', maxLat: '38', minLng: '127', maxLng: '128' })
       .expect(200);
-    expect(Array.isArray(res.body.items)).toBe(true);
+
+    expect(res.body.items.find((item: { id: string }) => item.id === photo.id)).toBeDefined();
   });
 
   it('returns an empty array when nothing matches', async () => {
     const res = await request(app.getHttpServer()).get('/discovery/gallery').query({ cameraName: 'NoSuchCamera' }).expect(200);
     expect(res.body.items).toEqual([]);
     expect(res.body.nextCursor).toBeNull();
+  });
+
+  it('rejects a non-positive-integer limit with 400', async () => {
+    await request(app.getHttpServer()).get('/discovery/gallery').query({ limit: '0' }).expect(400);
+    await request(app.getHttpServer()).get('/discovery/gallery').query({ limit: '-1' }).expect(400);
+    await request(app.getHttpServer()).get('/discovery/gallery').query({ limit: '1.5' }).expect(400);
+  });
+
+  it('clamps an excessively large limit instead of crashing or returning everything unbounded', async () => {
+    const camera = 'gallery-limit-clamp-test-camera';
+    for (let i = 0; i < 3; i++) {
+      await prisma.photo.create({ data: { userId, originalKey: 'k', cameraName: camera } });
+    }
+
+    const res = await request(app.getHttpServer())
+      .get('/discovery/gallery')
+      .query({ cameraName: camera, limit: '999999' })
+      .expect(200);
+
+    expect(res.body.items).toHaveLength(3);
   });
 });

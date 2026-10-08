@@ -73,4 +73,16 @@ describe('PhotoFilterService', () => {
     expect(await idsViaPrismaWhere({})).toEqual(expected);
     expect(await idsViaSql({})).toEqual(expected);
   });
+
+  it('status가 ACTIVE가 아닌(운영자 조치) 사진은 둘 다에서 빠진다', async () => {
+    // 리뷰에서 발견: status='ACTIVE' 조건을 toPrismaWhere/toSqlConditions에서 지워도
+    // 기존 테스트 전부 통과했음 — 이 조건을 직접 테스트하는 케이스가 없었기 때문.
+    const hidden = await prisma.photo.create({ data: { userId, originalKey: 'k', status: 'HIDDEN' } });
+
+    const expected = [ids.a, ids.b, ids.c].sort();
+    expect(await idsViaPrismaWhere({})).toEqual(expected);
+    expect(await idsViaSql({})).toEqual(expected);
+
+    await prisma.photo.delete({ where: { id: hidden.id } });
+  });
 });
