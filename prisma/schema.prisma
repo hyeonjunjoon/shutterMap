@@ -88,6 +88,8 @@ model Photo {
   // Prisma has no first-class geography type: this column is written/read
   // with $executeRaw / $queryRaw in PhotoLocationService (a later plan),
   // not through the generated Prisma Client API.
+  // 이 컬럼 위의 공간 부분 인덱스(photo_location_gist_idx)는 Prisma가 partial index를
+  // 표현할 문법이 없어서 손으로 쓴 마이그레이션으로만 관리된다 — 여기엔 선언하지 않는다.
   location       Unsupported("geography(Point, 4326)")?
   visibility     PhotoVisibility  @default(FUZZY)
   fuzzyOffsetLat Float?
