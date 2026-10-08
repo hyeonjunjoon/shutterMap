@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Param,
   Patch,
   Post,
@@ -17,6 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PhotoUploadService } from './services/photo-upload.service';
 import { PhotoLocationService } from './services/photo-location.service';
 import { PhotoVisibilityService } from './services/photo-visibility.service';
+import { PhotosService } from './photos.service';
 import { SetLocationDto } from './dto/set-location.dto';
 import { SetVisibilityDto } from './dto/set-visibility.dto';
 
@@ -32,6 +34,7 @@ export class PhotosController {
     private readonly photoUploadService: PhotoUploadService,
     private readonly photoLocationService: PhotoLocationService,
     private readonly photoVisibilityService: PhotoVisibilityService,
+    private readonly photosService: PhotosService,
   ) {}
 
   @UseGuards(JwtAuthGuard)
@@ -65,5 +68,10 @@ export class PhotosController {
   @Patch(':id/visibility')
   setVisibility(@Param('id') id: string, @Body() dto: SetVisibilityDto, @Req() req: AuthedRequest) {
     return this.photoVisibilityService.setVisibility(id, req.user.id, dto.visibility);
+  }
+
+  @Get(':id')
+  getDetail(@Param('id') id: string) {
+    return this.photosService.getDetail(id);
   }
 }
