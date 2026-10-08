@@ -109,4 +109,34 @@ describe('DiscoveryMapService.getPins', () => {
       status: 400,
     });
   });
+
+  it('filters by the projected (public) coordinate, not the real one — a tiny bbox around the real point must NOT reveal a FUZZY photo', async () => {
+    // 리뷰에서 발견: bbox 필터가 실제 좌표로 포함 여부를 판단하면, 공개 좌표는 숨겨도
+    // 좁은 bbox를 반복 조회해서 실제 위치를 정밀하게 역산(bisection)할 수 있다.
+    const photo = await seedPhoto({ visibility: 'FUZZY', lat: 37.0, lng: 127.0, fuzzyOffset: [37.004, 127.004] });
+
+    const tinyBoxAroundRealPoint = { minLat: 36.9999, maxLat: 37.0001, minLng: 126.9999, maxLng: 127.0001 };
+    const resultsNearReal = await service.getPins(tinyBoxAroundRealPoint, {});
+    expect(resultsNearReal.find((p) => p.id === photo.id)).toBeUndefined();
+
+    const tinyBoxAroundOffsetPoint = { minLat: 37.0039, maxLat: 37.0041, minLng: 127.0039, maxLng: 127.0041 };
+    const resultsNearOffset = await service.getPins(tinyBoxAroundOffsetPoint, {});
+    expect(resultsNearOffset.find((p) => p.id === photo.id)).toBeDefined();
+  });
+
+  it('does not return a HIDDEN-status (moderated) photo even if it matches every other condition', async () => {
+    const photo = await seedPhoto({ visibility: 'EXACT', lat: 37.0, lng: 127.0 });
+    await prisma.photo.update({ where: { id: photo.id }, data: { status: 'HIDDEN' } });
+
+    const pins = await service.getPins(bounds, {});
+    expect(pins.find((p) => p.id === photo.id)).toBeUndefined();
+  });
+
+  it('does not crash on a near-world-width viewport and still finds a pin inside it', async () => {
+    const photo = await seedPhoto({ visibility: 'EXACT', lat: 37.0, lng: 127.0 });
+    const worldBounds = { minLat: -80, maxLat: 80, minLng: -179, maxLng: 179 };
+
+    const pins = await service.getPins(worldBounds, {});
+    expect(pins.find((p) => p.id === photo.id)).toBeDefined();
+  });
 });
