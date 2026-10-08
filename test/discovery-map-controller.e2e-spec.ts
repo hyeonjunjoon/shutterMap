@@ -29,6 +29,9 @@ describe('GET /discovery/map', () => {
   });
 
   it('returns pins within bounds without requiring authentication', async () => {
+    // discovery API는 유저 범위 없이 전역으로 조회하므로, 같은 bounds를 쓰는 다른
+    // e2e 파일이 병렬로 떠 있을 때도 깨지지 않도록 "내가 만든 사진이 결과에 있는지"로
+    // 확인한다 — 결과 배열 전체 길이는 다른 테스트의 데이터로 늘어날 수 있다.
     const photo = await prisma.photo.create({ data: { userId, originalKey: 'k', visibility: 'EXACT' } });
     await prisma.$executeRaw`UPDATE "Photo" SET location = ST_SetSRID(ST_MakePoint(127.0, 37.0), 4326)::geography WHERE id = ${photo.id}`;
 
@@ -37,10 +40,10 @@ describe('GET /discovery/map', () => {
       .query({ minLat: '36.9', maxLat: '37.1', minLng: '126.9', maxLng: '127.1' })
       .expect(200);
 
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].id).toBe(photo.id);
-    expect(res.body[0].lat).toBeCloseTo(37.0, 5);
-    expect(res.body[0].lng).toBeCloseTo(127.0, 5);
+    const pin = res.body.find((p: { id: string }) => p.id === photo.id);
+    expect(pin).toBeDefined();
+    expect(pin.lat).toBeCloseTo(37.0, 5);
+    expect(pin.lng).toBeCloseTo(127.0, 5);
   });
 
   it('rejects an invalid latitude with 400', async () => {
@@ -57,11 +60,15 @@ describe('GET /discovery/map', () => {
       .expect(400);
   });
 
-  it('returns an empty array when no pins are in range', async () => {
+  it('does not return a photo placed outside the queried bounds', async () => {
+    const farPhoto = await prisma.photo.create({ data: { userId, originalKey: 'k', visibility: 'EXACT' } });
+    await prisma.$executeRaw`UPDATE "Photo" SET location = ST_SetSRID(ST_MakePoint(0, 0), 4326)::geography WHERE id = ${farPhoto.id}`;
+
     const res = await request(app.getHttpServer())
       .get('/discovery/map')
-      .query({ minLat: '0.9', maxLat: '1.1', minLng: '0.9', maxLng: '1.1' })
+      .query({ minLat: '36.9', maxLat: '37.1', minLng: '126.9', maxLng: '127.1' })
       .expect(200);
-    expect(res.body).toEqual([]);
+
+    expect(res.body.find((p: { id: string }) => p.id === farPhoto.id)).toBeUndefined();
   });
 });
