@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ExifService } from './exif.service';
-import { ImageProcessingService } from './image-processing.service';
+import { ExifService, ParsedExif } from './exif.service';
+import { ImageProcessingService, ProcessedImage } from './image-processing.service';
 import { R2StorageService } from './r2-storage.service';
 import { PhotoLocationService } from './photo-location.service';
 import { PhotoVisibilityService } from './photo-visibility.service';
@@ -12,6 +12,12 @@ export interface UploadedPhotoResult {
   cameraRaw: string | null;
   lensRaw: string | null;
   hasLocation: boolean;
+}
+
+interface PreparedFile {
+  file: Express.Multer.File;
+  exif: ParsedExif;
+  processed: ProcessedImage;
 }
 
 @Injectable()
@@ -26,12 +32,26 @@ export class PhotoUploadService {
   ) {}
 
   async uploadPhotos(userId: string, files: Express.Multer.File[]): Promise<UploadedPhotoResult[]> {
-    const results: UploadedPhotoResult[] = [];
-
+    // 1단계: 전부 디코딩/파싱부터 끝낸다. multer의 fileFilter는 클라이언트가 보낸
+    // mimetype만 보고, 실제 바이트가 손상됐는지는 sharp/heic-convert가 디코딩할
+    // 때야 드러난다 — 배치 중간에서 터지면 앞서 올린 파일만 R2/DB에 남는 부분 성공이
+    // 생기므로, 업로드·저장은 전부 성공적으로 디코딩된 뒤에만 시작한다.
+    const prepared: PreparedFile[] = [];
     for (const file of files) {
-      const id = randomUUID();
       const exif = await this.exifService.parse(file.buffer);
-      const processed = await this.imageProcessingService.process(file.buffer, file.mimetype);
+      let processed: ProcessedImage;
+      try {
+        processed = await this.imageProcessingService.process(file.buffer, file.mimetype);
+      } catch {
+        throw new BadRequestException(`이미지를 처리할 수 없습니다: ${file.originalname}`);
+      }
+      prepared.push({ file, exif, processed });
+    }
+
+    // 2단계: 검증이 끝난 파일만 업로드/저장한다.
+    const results: UploadedPhotoResult[] = [];
+    for (const { file, exif, processed } of prepared) {
+      const id = randomUUID();
 
       const originalExt = file.mimetype === 'image/png' ? 'png' : 'jpg';
       const originalKey = `photos/${userId}/${id}/original.${originalExt}`;

@@ -126,4 +126,22 @@ describe('POST /photos', () => {
       .attach('files', tooBig, { filename: 'big.jpg', contentType: 'image/jpeg' })
       .expect(413);
   });
+
+  it('rejects the whole batch with 400 when one file has a jpeg mimetype but corrupt/junk bytes, and persists nothing', async () => {
+    const agent = agentWithSession();
+    await agent.post('/auth/login').send({ email: TEST_EMAIL, password: 'password123' });
+    const countBefore = await prisma.photo.count({ where: { userId } });
+
+    const goodBuffer = await buildPlainJpeg();
+    const junkBuffer = Buffer.from('this is not a real jpeg, just junk bytes claiming to be one');
+
+    await agent
+      .post('/photos')
+      .attach('files', goodBuffer, { filename: 'good.jpg', contentType: 'image/jpeg' })
+      .attach('files', junkBuffer, { filename: 'junk.jpg', contentType: 'image/jpeg' })
+      .expect(400);
+
+    const countAfter = await prisma.photo.count({ where: { userId } });
+    expect(countAfter).toBe(countBefore);
+  });
 });

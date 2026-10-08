@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { PhotoUploadService } from './photo-upload.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ExifService } from './exif.service';
@@ -7,11 +8,11 @@ import { R2StorageService } from './r2-storage.service';
 import { PhotoLocationService } from './photo-location.service';
 import { PhotoVisibilityService } from './photo-visibility.service';
 
-function fakeFile(mimetype: string): Express.Multer.File {
+function fakeFile(mimetype: string, originalname = 'a.jpg', content = 'fake'): Express.Multer.File {
   return {
-    buffer: Buffer.from('fake'),
+    buffer: Buffer.from(content),
     mimetype,
-    originalname: 'a.jpg',
+    originalname,
   } as Express.Multer.File;
 }
 
@@ -132,5 +133,23 @@ describe('PhotoUploadService.uploadPhotos', () => {
     await service.uploadPhotos('user-1', [fakeFile('image/jpeg')]);
 
     expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects the whole batch and uploads/persists nothing when one file is unprocessable (corrupt content)', async () => {
+    const goodFile = fakeFile('image/jpeg', 'good.jpg', 'good-bytes');
+    const corruptFile = fakeFile('image/jpeg', 'corrupt.jpg', 'corrupt-bytes');
+    imageProcessingService.process.mockImplementation((buffer: Buffer) => {
+      if (buffer.toString() === 'corrupt-bytes') {
+        return Promise.reject(new Error('sharp: unsupported image format'));
+      }
+      return Promise.resolve({ serving: Buffer.from('s'), thumbnail: Buffer.from('t') });
+    });
+
+    await expect(service.uploadPhotos('user-1', [goodFile, corruptFile])).rejects.toThrow(BadRequestException);
+
+    // 먼저 들어간 goodFile도 업로드/저장돼서는 안 된다 — 전부 거절되거나 전부 성공해야 한다.
+    expect(r2.uploadBuffer).not.toHaveBeenCalled();
+    expect(r2.uploadOriginal).not.toHaveBeenCalled();
+    expect(prisma.photo.create).not.toHaveBeenCalled();
   });
 });
