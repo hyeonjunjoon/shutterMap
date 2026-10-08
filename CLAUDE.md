@@ -50,5 +50,7 @@ Use the resolved install path above for gstack file paths
 ## 백엔드 작업 규칙
 - `@nestjs/*` 계열 패키지는 전부 11.x로 고정한다.
 - 환경변수는 `process.env.X` 직접 참조 대신 `requireEnv()`로 읽는다.
-- find-or-create 로직은 사전 체크 대신 unique 제약 + 에러 캐치로 짠다.
+- 경쟁 조건은 사전 체크 대신 원자적 조건부 쓰기(unique 제약+에러 캐치, 또는 조건부 UPDATE)로 처리한다.
 - 패키지 설치/업그레이드 전에는 `npm view <pkg> dist-tags`로 안정판을 확인한다.
+- `npm test`가 통과해도 `npm run typecheck`와 `npm run build`까지 돌린다 — ts-jest가 못 잡는 타입/빌드 에러가 있다.
+- 동작이 불확실한 라이브러리 조합(네이티브 바인딩, 버전별 기능차이)은 계획 전에 스크래치에서 스파이크로 직접 확인한다.

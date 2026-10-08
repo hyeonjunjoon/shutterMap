@@ -1,4 +1,4 @@
-import { requireEnv } from './require-env';
+import { requireEnv } from '../common/require-env';
 
 // Single place both JwtModule and JwtStrategy read the secret from — fail
 // loudly at startup instead of silently signing/verifying with a public
