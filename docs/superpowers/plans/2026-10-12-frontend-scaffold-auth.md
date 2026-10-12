@@ -296,11 +296,13 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko" suppressHydrationWarning className={ibmPlexMono.variable}>
-      <body>{children}</body>
+      <body className="font-sans antialiased">{children}</body>
     </html>
   );
 }
 ```
+
+(shadcn이 만든 `@layer base`에 `html { @apply font-sans; }`가 이미 있어서 상속으로도 적용되긴 하지만, `<body>`에도 `font-sans`를 명시해두면 어디에 적용되는지 코드에서 바로 보이고 상속 경로가 중간에 끊길 걱정도 없다. `antialiased`는 폰트 렌더링을 더 매끄럽게 한다.)
 
 (`suppressHydrationWarning`은 Task 3에서 붙일 `next-themes`가 서버 렌더 이후 `<html>`에 `class="dark"`를 즉시 추가하기 때문에 필요 — 지금 당장은 안 써도 미리 넣어둔다.)
 
@@ -766,7 +768,7 @@ import { Providers } from './providers';
 `<body>` 부분을 아래로 교체:
 
 ```tsx
-      <body>
+      <body className="font-sans antialiased">
         <Providers>{children}</Providers>
       </body>
 ```
