@@ -13,6 +13,14 @@ const FINAL_FIX_TEST_EMAILS = [
   'shared-email@example.com',
 ];
 
+const AUTH_ME_TEST_EMAILS = [
+  'me-test@example.com',
+  'me-owned-camera@example.com',
+  'logout-test@example.com',
+  'patch-me-blank@example.com',
+  'patch-me@example.com',
+];
+
 describe('GET /auth/me', () => {
   let app: INestApplication;
   let prisma: PrismaService;
@@ -23,9 +31,15 @@ describe('GET /auth/me', () => {
     app.use(cookieParser());
     await app.init();
     prisma = moduleRef.get(PrismaService);
+    // 같은 이메일로 다시 돌리면 register가 409로 조용히 실패하고 이전 실행의
+    // 데이터로 로그인돼버린다 — 실행 전후 둘 다 정리해서 격리한다.
+    await prisma.user.deleteMany({ where: { email: { in: AUTH_ME_TEST_EMAILS } } });
   });
 
-  afterAll(async () => app.close());
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { email: { in: AUTH_ME_TEST_EMAILS } } });
+    await app.close();
+  });
 
   it('returns 401 without a session cookie', () => {
     return request(app.getHttpServer()).get('/auth/me').expect(401);
@@ -72,6 +86,47 @@ describe('GET /auth/me', () => {
     await agent.post('/auth/login').send({ email: 'logout-test@example.com', password: 'password123' });
     await agent.post('/auth/logout').expect(200);
     await agent.get('/auth/me').expect(401);
+  });
+});
+
+describe('PATCH /auth/me', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = moduleRef.createNestApplication();
+    app.use(cookieParser());
+    await app.init();
+    prisma = moduleRef.get(PrismaService);
+    await prisma.user.deleteMany({ where: { email: { in: AUTH_ME_TEST_EMAILS } } });
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { email: { in: AUTH_ME_TEST_EMAILS } } });
+    await app.close();
+  });
+
+  it('rejects an unauthenticated request with 401', async () => {
+    await request(app.getHttpServer()).patch('/auth/me').send({ ownedCameraName: 'ILCE-7M4' }).expect(401);
+  });
+
+  it('rejects an empty ownedCameraName with 400', async () => {
+    const agent = request.agent(app.getHttpServer());
+    await agent.post('/auth/register').send({ email: 'patch-me-blank@example.com', password: 'password123' });
+    await agent.post('/auth/login').send({ email: 'patch-me-blank@example.com', password: 'password123' });
+    await agent.patch('/auth/me').send({ ownedCameraName: '' }).expect(400);
+  });
+
+  it('confirms/changes ownedCameraName and persists it', async () => {
+    const agent = request.agent(app.getHttpServer());
+    await agent.post('/auth/register').send({ email: 'patch-me@example.com', password: 'password123' });
+    await agent.post('/auth/login').send({ email: 'patch-me@example.com', password: 'password123' });
+
+    await agent.patch('/auth/me').send({ ownedCameraName: 'X100VI' }).expect(200);
+
+    const res = await agent.get('/auth/me').expect(200);
+    expect(res.body.ownedCameraName).toBe('X100VI');
   });
 });
 

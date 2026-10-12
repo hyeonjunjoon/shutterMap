@@ -1,9 +1,10 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 const SESSION_COOKIE_OPTIONS = {
@@ -33,6 +34,12 @@ export class AuthController {
   @Get('me')
   me(@Req() req: Request & { user: { id: string; email: string } }) {
     return this.authService.getProfile(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  updateMe(@Body() dto: UpdateProfileDto, @Req() req: Request & { user: { id: string; email: string } }) {
+    return this.authService.updateOwnedCamera(req.user.id, dto);
   }
 
   @Post('logout')
