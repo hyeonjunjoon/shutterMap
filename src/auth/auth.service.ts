@@ -95,4 +95,16 @@ export class AuthService {
   async issueSessionToken(userId: string, email: string): Promise<string> {
     return this.jwtService.signAsync({ sub: userId, email });
   }
+
+  // GET /auth/me가 쓴다 — JWT 페이로드(id/email)는 가입 시점에 고정되니,
+  // ownedCameraName처럼 나중에 바뀔 수 있는 값은 매번 DB에서 새로 읽는다.
+  async getProfile(userId: string): Promise<{ id: string; email: string; ownedCameraName: string | null; ownedCameraRaw: string | null }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    return {
+      id: user.id,
+      email: user.email,
+      ownedCameraName: user.ownedCameraName,
+      ownedCameraRaw: user.ownedCameraRaw,
+    };
+  }
 }

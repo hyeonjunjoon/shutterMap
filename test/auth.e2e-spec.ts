@@ -15,12 +15,14 @@ const FINAL_FIX_TEST_EMAILS = [
 
 describe('GET /auth/me', () => {
   let app: INestApplication;
+  let prisma: PrismaService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
     app.use(cookieParser());
     await app.init();
+    prisma = moduleRef.get(PrismaService);
   });
 
   afterAll(async () => app.close());
@@ -42,6 +44,26 @@ describe('GET /auth/me', () => {
     await agent.post('/auth/login').send({ email: 'me-test@example.com', password: 'password123' });
     const res = await agent.get('/auth/me').expect(200);
     expect(res.body.email).toBe('me-test@example.com');
+  });
+
+  it('returns ownedCameraName/ownedCameraRaw (null before first upload, set value after)', async () => {
+    const agent = request.agent(app.getHttpServer());
+    await agent.post('/auth/register').send({ email: 'me-owned-camera@example.com', password: 'password123' });
+    await agent.post('/auth/login').send({ email: 'me-owned-camera@example.com', password: 'password123' });
+
+    const beforeRes = await agent.get('/auth/me').expect(200);
+    expect(beforeRes.body.ownedCameraName).toBeNull();
+    expect(beforeRes.body.ownedCameraRaw).toBeNull();
+
+    const user = await prisma.user.findFirstOrThrow({ where: { email: 'me-owned-camera@example.com' } });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { ownedCameraName: 'ILCE-7M4', ownedCameraRaw: 'ILCE-7M4' },
+    });
+
+    const afterRes = await agent.get('/auth/me').expect(200);
+    expect(afterRes.body.ownedCameraName).toBe('ILCE-7M4');
+    expect(afterRes.body.ownedCameraRaw).toBe('ILCE-7M4');
   });
 
   it('clears the session cookie on logout', async () => {
