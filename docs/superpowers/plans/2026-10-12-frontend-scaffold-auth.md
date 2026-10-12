@@ -1,0 +1,1062 @@
+# ShutterMap 프론트엔드 1단계: 스캐폴드 + 인증 Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** `web/` Next.js 프로젝트를 새로 만들고, 로그인/회원가입 화면과 전역 인증 상태(`GET /auth/me` 캐싱)·라우트 가드(미들웨어)까지 동작하게 한다.
+
+**Architecture:** Next.js App Router + Tailwind v4 + shadcn/ui(디자인 토큰은 `docs/designs/DESIGN.md`/`globals.css`) + TanStack Query(서버 상태) + next-themes(다크 기본). 백엔드(NestJS)는 건드리지 않고 `docs/api.md`에 이미 정의된 API만 호출한다. 인증은 Next.js가 JWT를 자체 검증하지 않고 매번 `GET /auth/me`로 NestJS에 위임한다.
+
+**Tech Stack:** Next.js 16.4.0, React 19.3.0, TypeScript(create-next-app이 고정하는 `^5`, 7.x 아님), Tailwind CSS v4, shadcn/ui, `@tanstack/react-query` 5.104.2, `next-themes` 0.4.6, Vitest 5.0.3 + `@vitejs/plugin-react` 5.2.0 + `vite` 7.3.7(테스트용, `@vitejs/plugin-react@6.x`는 `vite@^8`을 요구하고 `@babel/core@8.0.0-rc` 충돌이 있어 피함 — 2026-10-12 스파이크로 확인) + React Testing Library.
+
+**Spec:** `docs/superpowers/specs/2026-10-12-frontend-design.md` (§2~§4, §7.4, §8), `docs/api.md`(Auth 섹션 전체), `docs/designs/DESIGN.md`/`docs/designs/globals.css`.
+
+## Global Constraints
+
+- Next.js는 API Route Handlers를 쓰지 않는다 — 모든 API 호출은 NestJS(`docs/api.md`)로 간다. (spec §2)
+- Next.js는 JWT를 자체 검증하지 않는다 — 로그인 여부는 항상 `GET /auth/me` 호출 결과로 판단한다. (spec §4)
+- 모든 API 요청은 `credentials: 'include'`를 반드시 보낸다 — 안 보내면 로그인해도 쿠키가 전송 안 돼 401이 난다. (`docs/api.md` 인증 방식)
+- 에러 응답은 `{ statusCode, message, error }` 형태이고 `message`는 string 또는 string[] 둘 다 올 수 있다 — 두 경우 모두 처리한다. (`docs/api.md`)
+- 카카오/구글 로그인 버튼은 `fetch`가 아니라 `<a href>` 전체 페이지 이동으로 구현한다(서버가 OAuth 제공자로 302 리다이렉트하므로). (spec §7.4)
+- `POST /auth/register`는 성공 시 이미 로그인 세션 쿠키를 심어준다 — 가입 후 별도로 `POST /auth/login`을 또 호출하지 않는다. (`docs/api.md`, 백엔드 수정 완료됨)
+- 미들웨어는 `session` 쿠키의 "존재 여부"만 확인한다(가벼운 UX 최적화) — 실제 유효성 검증은 페이지가 `GET /auth/me`로 다시 한다. 미들웨어만으로 인증을 신뢰하지 않는다. (spec §4)
+- 다크 모드가 기본이지만, CSS 구조는 shadcn 표준(`:root`=라이트, `.dark`=오버라이드) 그대로 두고 `next-themes`의 `defaultTheme="dark"`로 기본값을 만든다. (`docs/designs/DESIGN.md`, 2026-10-12 스파이크로 수정됨)
+- 색상 토큰은 OKLCH, `--radius-photo`는 `@theme inline`에 등록해 `rounded-photo` 유틸리티로 쓴다(Tailwind v4 방식, `tailwind.config` 아님). (`docs/designs/globals.css`)
+- `web/`은 이 레포의 사이블링 폴더다(별도 레포 아님). (spec §3)
+- **범위 내 결정**: spec §8이 말하는 "다른 요청의 401을 공통 인터셉터에서 가로채 토스트"는 이미 로그인한 사용자의 세션이 만료된 채로 보호된 액션(업로드/좋아요 등)을 시도하는 경우를 위한 것이다. 이 플랜엔 그런 액션이 아직 하나도 없다(로그인/가입 자체의 401은 "자격증명 틀림"이지 "세션 만료"가 아니라 페이지 인라인 에러로 처리하는 게 맞다). 그 공통 인터셉터는 테스트할 보호된 액션이 실제로 생기는 다음 플랜(업로드 등)에서 추가한다 — 지금 만들면 아무 것도 그 경로를 타지 않는 코드가 된다.
+
+## Review Focus
+
+1. **`credentials: 'include'`를 빠뜨리면 로그인해도 모든 요청이 401로 보인다** — `docs/api.md`가 명시적으로 경고하는 가장 흔한 실수. Task 2의 `apiClient` 테스트가 모든 `fetch` 호출에 이 옵션이 실제로 들어가는지 직접 검증한다.
+2. **에러 `message`가 string이 아니라 string[]로 오는 경우(검증 실패 시 여러 필드 동시 오류)** — 배열을 그대로 렌더링하면 화면이 깨진다. Task 2(`apiClient`)와 Task 6(회원가입 폼)에서 둘 다 실제로 테스트한다.
+3. **`POST /auth/register`가 이미 로그인시켜주는데, 프론트가 모르고 또 `/auth/login`을 호출하면** 비밀번호를 중복으로 보내는 불필요한 요청이 생긴다. Task 6에서 "register 호출 뒤 `/auth/login`이 호출되지 않았는지"를 직접 단언한다.
+4. **미들웨어는 쿠키 "존재"만 보고 "유효성"은 못 본다** — 위조되거나 만료된 쿠키를 가진 요청은 미들웨어를 통과하지만, 그 뒤 페이지가 `GET /auth/me`를 호출하면 401을 받는다. 이번 플랜엔 보호된 페이지 본체(`/upload`, `/me`)가 아직 없어서 "미들웨어 통과 후 실제 401을 받았을 때 다시 `/login`으로 보내는" 처리까지는 구현하지 않는다 — **다음 플랜(업로드/마이페이지)에서 반드시 페이지 레벨 재확인을 구현해야 한다**는 걸 여기 명시해두고 넘어간다(Task 4의 주석으로도 남김).
+5. **에러 응답 바디가 비어있는 `200`(PATCH 성공 등)을 `.json()`으로 파싱하면 그 자체로 예외가 난다** — 이번 플랜은 PATCH를 호출하지 않지만, `apiClient`는 다음 플랜들이 전부 재사용할 공용 함수라 지금 제대로 만들어야 한다. Task 2에서 빈 body 200 응답 케이스를 직접 테스트한다.
+
+---
+
+## File Structure
+
+```
+web/                              (신규 — 이 레포의 사이블링 폴더)
+├── app/
+│   ├── layout.tsx                 (폰트 로딩 + <Providers>)
+│   ├── globals.css                (shadcn 생성 + DESIGN.md 토큰 오버라이드)
+│   ├── providers.tsx               (QueryClientProvider + ThemeProvider)
+│   ├── page.tsx                    (임시 홈 — 실제 탐색 화면은 다음 플랜)
+│   ├── page.test.tsx
+│   ├── login/
+│   │   ├── page.tsx
+│   │   └── page.test.tsx
+│   └── register/
+│       ├── page.tsx
+│       └── page.test.tsx
+├── components/ui/                 (shadcn init이 생성, 이번 플랜은 손대지 않음)
+├── hooks/
+│   ├── use-me.ts                   (GET /auth/me를 감싸는 TanStack Query 훅)
+│   └── use-me.test.tsx
+├── lib/
+│   ├── api-client.ts               (공용 fetch 래퍼 — 모든 화면이 재사용)
+│   ├── api-client.test.ts
+│   └── utils.ts                    (shadcn init이 생성한 cn() 헬퍼, 이번 플랜은 손대지 않음)
+├── middleware.ts                   (보호된 라우트 리다이렉트)
+├── middleware.test.ts
+├── components.json                 (shadcn 설정)
+├── vitest.config.ts
+├── vitest.setup.ts
+├── .env.local.example
+├── package.json
+└── tsconfig.json
+```
+
+---
+
+## Task 1: Next.js 스캐폴드 + Tailwind v4 + shadcn/ui + 디자인 토큰 + 테스트 도구
+
+**Files:**
+- Create: `web/` 전체(create-next-app + shadcn init이 생성하는 모든 파일)
+- Modify: `web/app/globals.css` (DESIGN.md 토큰 오버라이드 적용)
+- Create: `web/app/layout.tsx` (폰트 로딩 — Providers는 Task 3에서 추가)
+- Create: `web/vitest.config.ts`, `web/vitest.setup.ts`
+- Create: `web/app/page.tsx`, `web/app/page.test.tsx`
+- Create: `web/.env.local.example`
+- Modify: `web/package.json` (`test` 스크립트 추가)
+
+**Interfaces:**
+- Produces: `web/` 프로젝트(아래 Task들이 전부 이 안에 파일을 추가한다). `web/app/layout.tsx`의 `RootLayout` — Task 3이 이 파일을 수정해 `<Providers>`로 children을 감싼다.
+
+- [ ] **Step 1: Next.js 프로젝트 생성**
+
+리포 루트(`shutter-map/`)에서:
+
+```bash
+npx --yes create-next-app@16.4.0 web --typescript --tailwind --eslint --app --src-dir=false --import-alias "@/*" --use-npm --yes
+```
+
+- [ ] **Step 2: 빌드 확인**
+
+```bash
+cd web && npm run build
+```
+Expected: `Compiled successfully`로 끝남 (에러 없음).
+
+- [ ] **Step 3: shadcn/ui 초기화**
+
+```bash
+cd web && npx --yes shadcn@latest init -d
+```
+Expected: `Project initialization completed.` — `components.json`, `components/ui/button.tsx`, `lib/utils.ts` 생성, `app/globals.css` 갱신.
+
+- [ ] **Step 4: 나머지 의존성 설치 (버전 고정 — 스파이크로 검증된 조합)**
+
+```bash
+cd web && npm install next-themes@0.4.6 @tanstack/react-query@5.104.2 pretendard@1.3.9
+npm install -D vite@7.3.7 @vitejs/plugin-react@5.2.0 vitest@5.0.3 @testing-library/react@16.3.3 @testing-library/jest-dom @testing-library/user-event jsdom @types/node@latest
+```
+Expected: 에러 없이 설치됨. (`@vitejs/plugin-react`의 `latest`인 6.x를 쓰면 `vite@^8`을 요구하면서 `@babel/core@8.0.0-rc` 충돌이 난다 — 반드시 5.2.0으로 고정)
+
+- [ ] **Step 5: DESIGN.md 토큰을 globals.css에 적용**
+
+`web/app/globals.css`를 열어서(shadcn init이 만든 `:root { ... }` / `.dark { ... }` 블록은 그대로 두고) 아래만 바꾼다:
+
+1. `@theme inline { ... }` 블록 맨 끝에 한 줄 추가:
+   ```css
+   --radius-photo: var(--radius-photo);
+   ```
+2. `:root { ... }` 블록에서 아래 값을 찾아 교체(없으면 추가):
+   ```css
+   --primary: oklch(0.666 0.179 58.318);
+   --primary-foreground: oklch(0.985 0 0);
+   --ring: oklch(0.666 0.179 58.318);
+   --radius: 0.5rem;
+   --radius-photo: 0.125rem;
+   --font-sans: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
+   --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
+   ```
+3. `.dark { ... }` 블록에서 아래 값을 찾아 교체(없으면 추가):
+   ```css
+   --primary: oklch(0.769 0.188 70.08);
+   --primary-foreground: oklch(0.145 0 0);
+   --ring: oklch(0.769 0.188 70.08);
+   ```
+
+(정확한 값/이유는 `docs/designs/DESIGN.md`, `docs/designs/globals.css` 참고 — 둘 다 2026-10-12 스파이크로 검증된 내용이다.)
+
+- [ ] **Step 6: 루트 레이아웃에 폰트 로딩 적용**
+
+`web/app/layout.tsx`:
+
+```tsx
+import type { Metadata } from 'next';
+import { IBM_Plex_Mono } from 'next/font/google';
+import 'pretendard/dist/web/variable/pretendardvariable.css';
+import './globals.css';
+
+const ibmPlexMono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-ibm-plex-mono' });
+
+export const metadata: Metadata = {
+  title: 'ShutterMap',
+  description: '카메라 작례 지도 서비스',
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="ko" suppressHydrationWarning className={ibmPlexMono.variable}>
+      <body>{children}</body>
+    </html>
+  );
+}
+```
+
+(`suppressHydrationWarning`은 Task 3에서 붙일 `next-themes`가 서버 렌더 이후 `<html>`에 `class="dark"`를 즉시 추가하기 때문에 필요 — 지금 당장은 안 써도 미리 넣어둔다.)
+
+- [ ] **Step 7: 테스트 도구 설정**
+
+`web/vitest.config.ts`:
+
+```ts
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
+  },
+  resolve: {
+    alias: { '@': path.resolve(__dirname, '.') },
+  },
+});
+```
+
+`web/vitest.setup.ts`:
+
+```ts
+import '@testing-library/jest-dom/vitest';
+```
+
+`web/package.json`의 `"scripts"`에 추가:
+
+```json
+"test": "vitest run"
+```
+
+- [ ] **Step 8: 실패하는 홈페이지 테스트 작성**
+
+`web/app/page.test.tsx`:
+
+```tsx
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import Page from './page';
+
+describe('Home page', () => {
+  it('renders the ShutterMap heading', () => {
+    render(<Page />);
+    expect(screen.getByRole('heading', { name: 'ShutterMap' })).toBeDefined();
+  });
+});
+```
+
+- [ ] **Step 9: 테스트 실행 → 실패 확인**
+
+```bash
+cd web && npm test
+```
+Expected: FAIL — `app/page.tsx`가 아직 "ShutterMap" 제목을 안 가지고 있음(create-next-app의 기본 템플릿 내용).
+
+- [ ] **Step 10: 홈페이지 구현**
+
+`web/app/page.tsx`:
+
+```tsx
+export default function Home() {
+  return (
+    <main>
+      <h1>ShutterMap</h1>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 11: 테스트 실행 → 통과 확인**
+
+```bash
+cd web && npm test
+```
+Expected: PASS 1/1.
+
+- [ ] **Step 12: 환경변수 예시 파일 작성**
+
+`web/.env.local.example`:
+
+```
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
+```
+
+로컬 개발용 `web/.env.local`도 같은 내용으로 직접 만든다(이 파일은 `.gitignore`에 이미 포함돼 커밋되지 않음 — create-next-app 기본 설정 확인됨).
+
+- [ ] **Step 13: 빌드 재확인 + 커밋**
+
+```bash
+cd web && npm run build && npm test
+```
+Expected: 둘 다 성공.
+
+```bash
+cd /path/to/shutter-map
+git add web/
+git commit -m "feat(web): Next.js 스캐폴드 + Tailwind v4 + shadcn/ui + 디자인 토큰 + Vitest 설정"
+```
+
+---
+
+## Task 2: 공용 API 클라이언트
+
+**Files:**
+- Create: `web/lib/api-client.ts`
+- Test: `web/lib/api-client.test.ts`
+
+**Interfaces:**
+- Consumes: `process.env.NEXT_PUBLIC_API_BASE_URL` (Task 1에서 `.env.local`에 설정됨)
+- Produces: `apiClient<T>(path: string, options?: RequestInit): Promise<T>`, `ApiError` 클래스(`.status: number`, `.message: string`) — Task 3, 5, 6이 전부 이걸 가져다 쓴다.
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`web/lib/api-client.test.ts`:
+
+```ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { apiClient, ApiError } from './api-client';
+
+function mockFetchOnce(status: number, body: unknown, bodyIsEmpty = false) {
+  global.fetch = vi.fn().mockResolvedValue({
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => (bodyIsEmpty ? '' : JSON.stringify(body)),
+  } as Response);
+}
+
+describe('apiClient', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns parsed JSON on success', async () => {
+    mockFetchOnce(200, { id: 'u1', email: 'a@b.com' });
+    const result = await apiClient('/auth/me');
+    expect(result).toEqual({ id: 'u1', email: 'a@b.com' });
+  });
+
+  it('returns null for an empty 200 body without throwing', async () => {
+    mockFetchOnce(200, null, true);
+    const result = await apiClient('/photos/x/visibility', { method: 'PATCH' });
+    expect(result).toBeNull();
+  });
+
+  it('throws ApiError with the string message on a 401', async () => {
+    mockFetchOnce(401, {
+      statusCode: 401,
+      message: '이메일 또는 비밀번호가 올바르지 않습니다.',
+      error: 'Unauthorized',
+    });
+    await expect(apiClient('/auth/login', { method: 'POST' })).rejects.toBeInstanceOf(ApiError);
+    mockFetchOnce(401, {
+      statusCode: 401,
+      message: '이메일 또는 비밀번호가 올바르지 않습니다.',
+      error: 'Unauthorized',
+    });
+    await expect(apiClient('/auth/login', { method: 'POST' })).rejects.toThrow(
+      '이메일 또는 비밀번호가 올바르지 않습니다.',
+    );
+  });
+
+  it('joins a string[] message on a 400 validation error', async () => {
+    mockFetchOnce(400, {
+      statusCode: 400,
+      message: ['email must be an email', 'password must be longer than or equal to 8 characters'],
+      error: 'Bad Request',
+    });
+    await expect(apiClient('/auth/register', { method: 'POST' })).rejects.toThrow(
+      'email must be an email, password must be longer than or equal to 8 characters',
+    );
+  });
+
+  it('sends credentials: include on every request', async () => {
+    mockFetchOnce(200, { ok: true });
+    await apiClient('/auth/me');
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+});
+```
+
+- [ ] **Step 2: 테스트 실행 → 실패 확인**
+
+```bash
+cd web && npx vitest run lib/api-client.test.ts
+```
+Expected: FAIL — `Cannot find module './api-client'`.
+
+- [ ] **Step 3: 구현**
+
+`web/lib/api-client.ts`:
+
+```ts
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function extractErrorMessage(body: unknown): string {
+  if (body && typeof body === 'object' && 'message' in body) {
+    const message = (body as { message: unknown }).message;
+    if (Array.isArray(message)) return message.join(', ');
+    if (typeof message === 'string') return message;
+  }
+  return '알 수 없는 오류가 발생했습니다.';
+}
+
+export async function apiClient<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
+
+  // NestJS의 PATCH 엔드포인트 다수가 200 + 빈 body를 돌려준다 — 빈 문자열을
+  // .json()으로 바로 파싱하면 그 자체로 SyntaxError가 나서, text()로 먼저
+  // 받아 빈 문자열인지 확인한다.
+  const text = await res.text();
+  const body = text ? JSON.parse(text) : null;
+
+  if (!res.ok) {
+    throw new ApiError(res.status, extractErrorMessage(body));
+  }
+
+  return body as T;
+}
+```
+
+- [ ] **Step 4: 테스트 실행 → 통과 확인**
+
+```bash
+cd web && npx vitest run lib/api-client.test.ts
+```
+Expected: PASS 5/5.
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add web/lib/api-client.ts web/lib/api-client.test.ts
+git commit -m "feat(web): 공용 API 클라이언트 (credentials:include, 에러 포맷 파싱, 빈 body 처리)"
+```
+
+---
+
+## Task 3: 전역 인증 상태 (`useMe`) + Providers
+
+**Files:**
+- Create: `web/hooks/use-me.ts`
+- Test: `web/hooks/use-me.test.tsx`
+- Create: `web/app/providers.tsx`
+- Modify: `web/app/layout.tsx` (Task 1에서 만든 파일에 `<Providers>` 추가)
+
+**Interfaces:**
+- Consumes: `apiClient`, `ApiError` (Task 2)
+- Produces: `useMe(): UseQueryResult<Me | null>` — `Me = { id: string; email: string; ownedCameraName: string | null; ownedCameraRaw: string | null }`.쿼리키 `['me']`(이후 모든 플랜이 로그인 상태 확인에 재사용). `Providers` 컴포넌트 — children을 `QueryClientProvider` + `ThemeProvider`로 감싼다.
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`web/hooks/use-me.test.tsx`:
+
+```tsx
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useMe } from './use-me';
+import { apiClient, ApiError } from '@/lib/api-client';
+
+vi.mock('@/lib/api-client', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/api-client')>('@/lib/api-client');
+  return { ...actual, apiClient: vi.fn() };
+});
+
+const mockedApiClient = apiClient as unknown as ReturnType<typeof vi.fn>;
+
+function wrapper({ children }: { children: React.ReactNode }) {
+  const client = new QueryClient();
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+describe('useMe', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns the user on success', async () => {
+    mockedApiClient.mockResolvedValue({
+      id: 'u1',
+      email: 'a@b.com',
+      ownedCameraName: null,
+      ownedCameraRaw: null,
+    });
+    const { result } = renderHook(() => useMe(), { wrapper });
+    await waitFor(() =>
+      expect(result.current.data).toEqual({
+        id: 'u1',
+        email: 'a@b.com',
+        ownedCameraName: null,
+        ownedCameraRaw: null,
+      }),
+    );
+    expect(result.current.isError).toBe(false);
+  });
+
+  it('returns null (not an error) when the API returns 401', async () => {
+    mockedApiClient.mockRejectedValue(new ApiError(401, '인증 필요'));
+    const { result } = renderHook(() => useMe(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toBeNull();
+    expect(result.current.isError).toBe(false);
+  });
+
+  it('surfaces a real error (500) as isError', async () => {
+    mockedApiClient.mockRejectedValue(new ApiError(500, '서버 오류'));
+    const { result } = renderHook(() => useMe(), { wrapper });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+  });
+});
+```
+
+- [ ] **Step 2: 테스트 실행 → 실패 확인**
+
+```bash
+cd web && npx vitest run hooks/use-me.test.tsx
+```
+Expected: FAIL — `Cannot find module './use-me'`.
+
+- [ ] **Step 3: `useMe` 구현**
+
+`web/hooks/use-me.ts`:
+
+```ts
+import { useQuery } from '@tanstack/react-query';
+import { apiClient, ApiError } from '@/lib/api-client';
+
+export interface Me {
+  id: string;
+  email: string;
+  ownedCameraName: string | null;
+  ownedCameraRaw: string | null;
+}
+
+export function useMe() {
+  return useQuery<Me | null>({
+    queryKey: ['me'],
+    queryFn: async () => {
+      try {
+        return await apiClient<Me>('/auth/me');
+      } catch (error) {
+        // 비로그인(401)은 에러가 아니라 정상 상태다 — 토스트/에러 바운더리로
+        // 새지 않게 여기서 null로 변환한다.
+        if (error instanceof ApiError && error.status === 401) {
+          return null;
+        }
+        throw error;
+      }
+    },
+  });
+}
+```
+
+- [ ] **Step 4: 테스트 실행 → 통과 확인**
+
+```bash
+cd web && npx vitest run hooks/use-me.test.tsx
+```
+Expected: PASS 3/3.
+
+- [ ] **Step 5: Providers 작성 + 루트 레이아웃에 연결**
+
+`web/app/providers.tsx`:
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider } from 'next-themes';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+        {children}
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
+`web/app/layout.tsx`의 `<body>` 부분을 아래로 교체:
+
+```tsx
+import { Providers } from './providers';
+```
+
+(기존 import들 아래에 추가)
+
+```tsx
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+```
+
+- [ ] **Step 6: 전체 테스트 + 빌드 확인**
+
+```bash
+cd web && npm test && npm run build
+```
+Expected: 테스트 전부 통과(Task 1의 홈페이지 테스트 포함, 회귀 없음), 빌드 성공.
+
+- [ ] **Step 7: 커밋**
+
+```bash
+git add web/hooks/use-me.ts web/hooks/use-me.test.tsx web/app/providers.tsx web/app/layout.tsx
+git commit -m "feat(web): useMe 훅 + QueryClientProvider/ThemeProvider — 전역 로그인 상태"
+```
+
+---
+
+## Task 4: 라우트 가드 미들웨어
+
+**Files:**
+- Create: `web/middleware.ts`
+- Test: `web/middleware.test.ts`
+
+**Interfaces:**
+- Consumes: 없음(이 플랜의 다른 코드에 의존하지 않음 — `next/server`만 사용)
+- Produces: `middleware(request: NextRequest): NextResponse` — `/upload`, `/me` 경로를 쿠키 존재 여부로 보호. 다음 플랜(업로드/마이페이지)이 이 보호 목록에 실제 페이지를 추가한다.
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`web/middleware.test.ts`:
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { NextRequest } from 'next/server';
+import { middleware } from './middleware';
+
+describe('middleware', () => {
+  it('redirects to /login when visiting /upload without a session cookie', () => {
+    const req = new NextRequest(new URL('http://localhost:3000/upload'));
+    const res = middleware(req);
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toContain('/login');
+  });
+
+  it('redirects to /login when visiting /me without a session cookie', () => {
+    const req = new NextRequest(new URL('http://localhost:3000/me'));
+    const res = middleware(req);
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toContain('/login');
+  });
+
+  it('passes through /upload when a session cookie is present (존재만 확인 — 유효성은 페이지가 재확인)', () => {
+    const req = new NextRequest(new URL('http://localhost:3000/upload'), {
+      headers: { cookie: 'session=fake-jwt' },
+    });
+    const res = middleware(req);
+    expect(res.status).toBe(200);
+  });
+
+  it('does not redirect public paths like / without a cookie', () => {
+    const req = new NextRequest(new URL('http://localhost:3000/'));
+    const res = middleware(req);
+    expect(res.status).toBe(200);
+  });
+});
+```
+
+- [ ] **Step 2: 테스트 실행 → 실패 확인**
+
+```bash
+cd web && npx vitest run middleware.test.ts
+```
+Expected: FAIL — `Cannot find module './middleware'`.
+
+- [ ] **Step 3: 구현**
+
+`web/middleware.ts`:
+
+```ts
+import { NextRequest, NextResponse } from 'next/server';
+
+const PROTECTED_PATHS = ['/upload', '/me'];
+
+// 쿠키 "존재"만 확인한다 — 위조/만료 여부는 모른다. 그건 이 미들웨어가 할 일이
+// 아니라, 통과한 뒤 페이지가 GET /auth/me를 호출해서 NestJS에 다시 확인한다
+// (spec §4: "인증 검증은 전부 NestJS"). /upload, /me 페이지 본체는 아직 없고
+// 다음 플랜에서 추가된다 — 그 플랜에서 반드시 "me가 null이면 /login으로"
+// 페이지 레벨 재확인을 같이 구현해야 한다.
+export function middleware(request: NextRequest) {
+  const isProtected = PROTECTED_PATHS.some((path) => request.nextUrl.pathname.startsWith(path));
+  if (isProtected && !request.cookies.get('session')) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ['/upload/:path*', '/me/:path*'],
+};
+```
+
+- [ ] **Step 4: 테스트 실행 → 통과 확인**
+
+```bash
+cd web && npx vitest run middleware.test.ts
+```
+Expected: PASS 4/4.
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add web/middleware.ts web/middleware.test.ts
+git commit -m "feat(web): /upload, /me 보호 라우트 미들웨어 (쿠키 존재 여부만 확인)"
+```
+
+---
+
+## Task 5: 로그인 화면
+
+**Files:**
+- Create: `web/app/login/page.tsx`
+- Test: `web/app/login/page.test.tsx`
+
+**Interfaces:**
+- Consumes: `apiClient`, `ApiError`(Task 2), `useMe`(Task 3)
+- Produces: `/login` 라우트. 로그인 성공 시 `['me']` 쿼리를 무효화하고 `/`로 이동.
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`web/app/login/page.test.tsx`:
+
+```tsx
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import LoginPage from './page';
+import { apiClient, ApiError } from '@/lib/api-client';
+
+const replaceMock = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: replaceMock }) }));
+vi.mock('@/lib/api-client', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/api-client')>('@/lib/api-client');
+  return { ...actual, apiClient: vi.fn() };
+});
+
+const mockedApiClient = apiClient as unknown as ReturnType<typeof vi.fn>;
+
+function renderWithQuery(ui: React.ReactElement) {
+  const client = new QueryClient();
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
+describe('LoginPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedApiClient.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.reject(new ApiError(401, '비로그인'));
+      return Promise.resolve({ ok: true });
+    });
+  });
+
+  it('renders OAuth links as real <a> tags with the right href (fetch가 아니라 전체 페이지 이동이어야 함)', () => {
+    renderWithQuery(<LoginPage />);
+    const kakaoLink = screen.getByRole('link', { name: /카카오로 로그인/ });
+    expect(kakaoLink.tagName).toBe('A');
+    expect(kakaoLink.getAttribute('href')).toContain('/auth/kakao');
+  });
+
+  it('logs in and redirects to / on success', async () => {
+    renderWithQuery(<LoginPage />);
+    await userEvent.type(screen.getByPlaceholderText('이메일'), 'a@b.com');
+    await userEvent.type(screen.getByPlaceholderText('비밀번호'), 'password123');
+    await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/'));
+  });
+
+  it('shows the error message on 401', async () => {
+    mockedApiClient.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.reject(new ApiError(401, '비로그인'));
+      return Promise.reject(new ApiError(401, '이메일 또는 비밀번호가 올바르지 않습니다.'));
+    });
+    renderWithQuery(<LoginPage />);
+    await userEvent.type(screen.getByPlaceholderText('이메일'), 'a@b.com');
+    await userEvent.type(screen.getByPlaceholderText('비밀번호'), 'wrong');
+    await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않습니다.'),
+    );
+  });
+});
+```
+
+- [ ] **Step 2: 테스트 실행 → 실패 확인**
+
+```bash
+cd web && npx vitest run app/login/page.test.tsx
+```
+Expected: FAIL — `Cannot find module './page'`.
+
+- [ ] **Step 3: 구현**
+
+`web/app/login/page.tsx`:
+
+```tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiClient, ApiError } from '@/lib/api-client';
+import { useMe } from '@/hooks/use-me';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
+
+export default function LoginPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: me } = useMe();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (me) router.replace('/');
+  }, [me, router]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await apiClient('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      router.replace('/');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '로그인에 실패했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main>
+      <h1>로그인</h1>
+      <form onSubmit={handleSubmit}>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="이메일"
+          required
+        />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="비밀번호"
+          required
+        />
+        {error && <p role="alert">{error}</p>}
+        <button type="submit" disabled={submitting}>
+          로그인
+        </button>
+      </form>
+      <a href={`${API_BASE_URL}/auth/kakao`}>카카오로 로그인</a>
+      <a href={`${API_BASE_URL}/auth/google`}>구글로 로그인</a>
+      <a href="/register">회원가입</a>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 4: 테스트 실행 → 통과 확인**
+
+```bash
+cd web && npx vitest run app/login/page.test.tsx
+```
+Expected: PASS 3/3.
+
+- [ ] **Step 5: 커밋**
+
+```bash
+git add web/app/login/
+git commit -m "feat(web): 로그인 화면"
+```
+
+---
+
+## Task 6: 회원가입 화면
+
+**Files:**
+- Create: `web/app/register/page.tsx`
+- Test: `web/app/register/page.test.tsx`
+
+**Interfaces:**
+- Consumes: `apiClient`, `ApiError`(Task 2), `useMe`(Task 3)
+- Produces: `/register` 라우트. 가입 성공 시(백엔드가 이미 로그인시켜줌) `['me']` 쿼리를 무효화하고 `/`로 이동 — `/auth/login`을 별도로 호출하지 않는다.
+
+- [ ] **Step 1: 실패하는 테스트 작성**
+
+`web/app/register/page.test.tsx`:
+
+```tsx
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import RegisterPage from './page';
+import { apiClient, ApiError } from '@/lib/api-client';
+
+const replaceMock = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: replaceMock }) }));
+vi.mock('@/lib/api-client', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/api-client')>('@/lib/api-client');
+  return { ...actual, apiClient: vi.fn() };
+});
+
+const mockedApiClient = apiClient as unknown as ReturnType<typeof vi.fn>;
+
+function renderWithQuery(ui: React.ReactElement) {
+  const client = new QueryClient();
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
+describe('RegisterPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedApiClient.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.reject(new ApiError(401, '비로그인'));
+      return Promise.resolve({ id: 'u1', email: 'a@b.com' });
+    });
+  });
+
+  it('registers and redirects to / without calling /auth/login separately (백엔드가 가입 시 이미 로그인시켜줌)', async () => {
+    renderWithQuery(<RegisterPage />);
+    await userEvent.type(screen.getByPlaceholderText('이메일'), 'a@b.com');
+    await userEvent.type(screen.getByPlaceholderText('비밀번호'), 'password123');
+    await userEvent.click(screen.getByRole('button', { name: '가입하기' }));
+
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/'));
+    const calledPaths = mockedApiClient.mock.calls.map((call) => call[0]);
+    expect(calledPaths).not.toContain('/auth/login');
+  });
+
+  it('shows the error message on 409 (duplicate email)', async () => {
+    mockedApiClient.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.reject(new ApiError(401, '비로그인'));
+      return Promise.reject(new ApiError(409, '이미 가입된 이메일입니다.'));
+    });
+    renderWithQuery(<RegisterPage />);
+    await userEvent.type(screen.getByPlaceholderText('이메일'), 'a@b.com');
+    await userEvent.type(screen.getByPlaceholderText('비밀번호'), 'password123');
+    await userEvent.click(screen.getByRole('button', { name: '가입하기' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('이미 가입된 이메일입니다.'));
+  });
+
+  it('shows a joined string[] validation message on 400', async () => {
+    mockedApiClient.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.reject(new ApiError(401, '비로그인'));
+      return Promise.reject(
+        new ApiError(400, 'email must be an email, password must be longer than or equal to 8 characters'),
+      );
+    });
+    renderWithQuery(<RegisterPage />);
+    await userEvent.type(screen.getByPlaceholderText('이메일'), 'bad');
+    await userEvent.type(screen.getByPlaceholderText('비밀번호'), '1');
+    await userEvent.click(screen.getByRole('button', { name: '가입하기' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/email must be an email/));
+  });
+});
+```
+
+- [ ] **Step 2: 테스트 실행 → 실패 확인**
+
+```bash
+cd web && npx vitest run app/register/page.test.tsx
+```
+Expected: FAIL — `Cannot find module './page'`.
+
+- [ ] **Step 3: 구현**
+
+`web/app/register/page.tsx`:
+
+```tsx
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiClient, ApiError } from '@/lib/api-client';
+import { useMe } from '@/hooks/use-me';
+
+export default function RegisterPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: me } = useMe();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (me) router.replace('/');
+  }, [me, router]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      // 백엔드가 가입과 동시에 로그인 세션 쿠키를 심어준다(docs/api.md) —
+      // 별도로 /auth/login을 또 호출하지 않는다.
+      await apiClient('/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) });
+      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      router.replace('/');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : '가입에 실패했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main>
+      <h1>회원가입</h1>
+      <form onSubmit={handleSubmit}>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="이메일"
+          required
+        />
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="비밀번호"
+          required
+        />
+        {error && <p role="alert">{error}</p>}
+        <button type="submit" disabled={submitting}>
+          가입하기
+        </button>
+      </form>
+      <a href="/login">이미 계정이 있으신가요? 로그인</a>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 4: 테스트 실행 → 통과 확인**
+
+```bash
+cd web && npx vitest run app/register/page.test.tsx
+```
+Expected: PASS 3/3.
+
+- [ ] **Step 5: 전체 테스트 + 빌드 확인**
+
+```bash
+cd web && npm test && npm run build
+```
+Expected: 전체 테스트 통과(지금까지의 모든 Task 포함, 회귀 없음), 빌드 성공.
+
+- [ ] **Step 6: 커밋**
+
+```bash
+git add web/app/register/
+git commit -m "feat(web): 회원가입 화면"
+```
