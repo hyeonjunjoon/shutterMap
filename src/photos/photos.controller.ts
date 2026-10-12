@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -76,5 +77,11 @@ export class PhotosController {
   @Get(':id')
   getDetail(@Param('id') id: string) {
     return this.photosService.getDetail(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  deletePhoto(@Param('id') id: string, @Req() req: AuthedRequest) {
+    return this.photosService.deletePhoto(id, req.user.id);
   }
 }
