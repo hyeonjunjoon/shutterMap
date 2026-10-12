@@ -12,40 +12,51 @@
  * 사용자는 다크를 먼저 본다.
  */
 
-@theme inline {
-  /* shadcn이 자동 생성하는 --radius-sm/md/lg/xl 등은 그대로 두고, 이 프로젝트
-     전용 토큰만 추가한다 — shadcn 표준 변수가 아니다. 스파이크로 컴파일된
-     CSS에서 `.rounded-photo { border-radius: .125rem }`가 실제로 생성되는 걸
-     확인했다(tailwind.config 등록 방식 아님, v3와 다름). */
-  --radius-photo: var(--radius-photo);
+/* 사진 썸네일/이미지 전용 radius — shadcn 표준 변수가 아닌 이 프로젝트의 추가
+   토큰. 색상처럼 라이트/다크에 따라 안 바뀌는 고정값이라 @theme inline(var
+   간접참조)이 아니라 정적 @theme 블록에 직접 선언한다 — 2026-10-12 스파이크로
+   `.rounded-photo { border-radius: var(--radius-photo) }`가 생성되는 걸
+   확인했다(tailwind.config 등록 방식 아님, v3와 다름). shadcn이 만든
+   `@theme inline { ... }` 블록과는 별개의, 새로 추가하는 블록이다. */
+@theme {
+  --radius-photo: 0.125rem;
 }
+
+/*
+ * shadcn이 만든 `@theme inline { ... }` 블록 안에 이미 다음 두 줄이 있다
+ * (create-next-app이 Geist 폰트를 기본으로 설정해둔 것):
+ *   --font-sans: var(--font-sans);
+ *   --font-mono: var(--font-geist-mono);
+ * 새 줄을 추가하는 게 아니라 이 두 줄을 아래 값으로 "직접 교체"한다:
+ *   --font-sans: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
+ *   --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
+ * 'Pretendard Variable'은 pretendard npm 패키지의 CSS를 layout.tsx에서 import해서
+ * @font-face로 등록한다(next/font/google엔 없는 한글 폰트). IBM Plex Mono는
+ * next/font/google로 로드하고 변수명을 --font-ibm-plex-mono로 받는다(그대로
+ * --font-mono로 받으면 next/font가 생성하는 변수명과 이 파일의 선언이 충돌한다).
+ * EXIF/숫자 데이터(조리개·초점거리·ISO·셔터스피드) 표시에는 font-mono와 함께
+ * 항상 tabular-nums를 적용한다.
+ */
 
 :root {
   /* shadcn baseColor: "neutral"이 생성하는 background/foreground/card/popover/
      secondary/muted/accent/destructive/border/input/chart/sidebar-* 값은 이미
-     채도 0(완전 무채색)이라 그대로 둔다 — 아래 3개만 덮어쓴다. */
+     채도 0(완전 무채색)이라 그대로 둔다 — 아래만 덮어쓴다. */
 
   /* 앰버 — 포인트 컬러(버튼/좋아요·선택 상태/지도 마커)에만 쓴다.
-     amber-600, 흰 배경에서 충분한 명암비 확보. */
+     amber-600, 흰 배경에서 충분한 명암비 확보. amber-600 자체가 중간 밝기라
+     흰 글자보다 어두운 글자가 명암비가 더 잘 나온다 — primary-foreground는
+     라이트/다크 둘 다 어두운 색(near-black)으로 통일. */
   --primary: oklch(0.666 0.179 58.318);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.145 0 0);
   --ring: oklch(0.666 0.179 58.318);
 
   --radius: 0.5rem; /* UI 요소(버튼/카드/인풋/다이얼로그) — shadcn 표준, 8px */
-  --radius-photo: 0.125rem; /* 사진 썸네일/이미지 전용 — UI radius와 분리 */
-
-  /* 'Pretendard Variable'은 pretendard npm 패키지의 CSS를 layout.tsx에서
-     import해서 @font-face로 등록한다(next/font/google엔 없는 한글 폰트). */
-  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
-  /* IBM Plex Mono는 next/font/google로 로드하고 --font-ibm-plex-mono 변수로
-     받아서 여기서 참조한다(이름을 그대로 --font-mono로 받으면 next/font가
-     생성하는 변수와 이 파일의 선언이 충돌한다). EXIF/숫자 데이터 전용 —
-     항상 tabular-nums와 같이 쓴다. */
-  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
 }
 
 .dark {
-  /* amber-500 — 다크 배경에서 더 밝게, 어두운 텍스트로 충분한 명암비 */
+  /* amber-500 — 다크 배경에서 더 밝게. 다크 배경 위 버튼이라도 글자는 여전히
+     어두운 색이 명암비가 더 좋다(amber-500도 중간-밝은 톤이라 흰 글자보다 유리). */
   --primary: oklch(0.769 0.188 70.08);
   --primary-foreground: oklch(0.145 0 0);
   --ring: oklch(0.769 0.188 70.08);

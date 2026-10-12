@@ -21,10 +21,11 @@
 
 ## 적용 방법 (`web/` 스캐폴드 시)
 
-**2026-10-12 스파이크로 재확인**: 실제 `npx shadcn@latest init`(Tailwind v4 기준)이 생성하는 구조를 그대로 따른다 — 아래 2번 항목은 최초 작성 때의 가정(HSL, `.light` 오버라이드)에서 스파이크 결과로 수정됨.
+**2026-10-12 스파이크로 재확인/수정(2차)**: 실제 `npx shadcn@latest init`(Tailwind v4 기준)이 생성하는 구조를 그대로 따른다. 색상 구조(OKLCH, `:root`/`.dark`)는 1차 스파이크로 확정됐고, 이번 2차 수정은 `--radius-photo` 선언 방식과 `--primary-foreground` 명암비, 폰트 적용 방식을 다듬었다.
 
-1. `docs/designs/globals.css`의 내용을 `web/app/globals.css`에 그대로 복사한다(Tailwind v4 CSS-first 설정 — `tailwind.config.js` 없음, `@theme inline` 블록이 전부).
-2. **색상은 OKLCH** (`oklch(L C H)`), HSL 아님 — 현재 shadcn 생성기가 OKLCH를 쓴다. 구조는 shadcn 표준 그대로 **`:root`=라이트 기본값, `.dark`=다크 오버라이드**다(반전 아님). "다크 모드가 기본"은 CSS 구조가 아니라 `next-themes`의 `defaultTheme="dark"` 설정으로 만든다 — 초기 로드 시 `next-themes`가 `<html>`에 `dark` 클래스를 바로 붙여주므로 사용자는 다크를 기본으로 본다. 이렇게 해야 shadcn이 새 컴포넌트를 추가할 때마다 생성하는 표준 구조와 계속 맞는다.
-3. 뉴트럴(배경/텍스트/카드/보더 등)은 shadcn `baseColor: "neutral"`이 생성하는 값을 그대로 쓴다 — 이미 채도 0(완전 무채색)이라 손댈 필요 없음. `--primary`/`--primary-foreground`/`--ring`만 앰버로 덮어쓴다: 다크 `oklch(0.769 0.188 70.08)`(amber-500), 라이트 `oklch(0.666 0.179 58.318)`(amber-600, 흰 배경 명암비 확보). 정확한 값은 `docs/designs/globals.css` 참고.
-4. `--radius`(UI, 0.5rem)는 shadcn 표준 변수라 `@theme inline`에서 자동으로 `--radius-sm/md/lg/xl` 등 파생값을 만든다(하나만 바꾸면 전체 스케일이 따라간다). `--radius-photo`(이미지, 0.125rem)는 shadcn 표준이 아닌 이 프로젝트의 추가 토큰 — `@theme inline`에 `--radius-photo: var(--radius-photo);` 한 줄만 추가하면 Tailwind v4가 `rounded-photo` 유틸리티를 자동 생성한다(스파이크로 컴파일된 CSS에서 직접 확인함 — `tailwind.config`에 등록하는 게 아니다, v3 방식과 다름).
-5. EXIF 숫자 표시 컴포넌트에는 `font-mono tabular-nums` 클래스를 같이 적용한다.
+1. `web/app/globals.css`는 `npx shadcn@latest init`이 생성한다 — 그 파일의 `card/popover/chart/sidebar` 등 나머지 토큰은 그대로 두고, `docs/designs/globals.css`에 적힌 값만 덮어쓴다(통째로 복사하는 게 아님). Tailwind v4 CSS-first 설정이라 `tailwind.config.js`는 없다.
+2. **색상은 OKLCH** (`oklch(L C H)`), HSL 아님. 구조는 shadcn 표준 그대로 **`:root`=라이트 기본값, `.dark`=다크 오버라이드**다(반전 아님). "다크 모드가 기본"은 CSS 구조가 아니라 `next-themes`의 `defaultTheme="dark"` 설정으로 만든다.
+3. 뉴트럴(배경/텍스트/카드/보더 등)은 shadcn `baseColor: "neutral"`이 생성하는 값을 그대로 쓴다. `--primary`/`--ring`만 앰버로 덮어쓴다: 다크 `oklch(0.769 0.188 70.08)`(amber-500), 라이트 `oklch(0.666 0.179 58.318)`(amber-600). **`--primary-foreground`는 라이트/다크 둘 다 어두운 색(`oklch(0.145 0 0)`)으로 통일** — amber-500/600 둘 다 명도가 중간~중상 수준이라, 흰 글자보다 어두운 글자가 명암비가 더 잘 나온다(1차 스파이크 때 라이트 모드를 흰 글자로 잘못 적었던 걸 수정).
+4. `--radius`(UI, 0.5rem)는 shadcn 표준 변수라 자동으로 `--radius-sm/md/lg/xl` 파생값을 만든다. **`--radius-photo`(이미지, 0.125rem)는 shadcn의 `@theme inline` 블록에 넣지 않고, 별도의 정적 `@theme { --radius-photo: 0.125rem; }` 블록으로 선언한다** — 라이트/다크에 따라 안 바뀌는 고정값이라 `@theme inline`의 var 간접참조가 필요 없다(1차 스파이크는 `@theme inline`에 넣었는데, 더 단순한 정적 `@theme` 블록도 동일하게 `rounded-photo` 유틸리티를 만든다는 걸 2차 스파이크로 재확인).
+5. 폰트는 **새 줄을 추가하는 게 아니라, shadcn이 만든 `@theme inline` 블록 안에 이미 있는 `--font-sans: var(--font-sans);`/`--font-mono: var(--font-geist-mono);` 두 줄을 직접 교체**한다(create-next-app이 기본으로 넣어둔 Geist 폰트 참조). 'Pretendard Variable'은 `pretendard` npm 패키지의 CSS를 `layout.tsx`에서 import, IBM Plex Mono는 `next/font/google`로 로드해서 `--font-ibm-plex-mono` 변수로 받는다(그대로 `--font-mono`로 받으면 이 파일의 선언과 충돌). EXIF 숫자 표시 컴포넌트에는 `font-mono tabular-nums`를 같이 적용한다.
+6. **빌드 후 확인**: `npm run build`로 컴파일된 CSS에서 `--font-sans`가 Pretendard를 참조하는지, `.rounded-photo`가 `0.125rem`으로 생성됐는지 직접 확인한다(이 세션엔 실제 브라우저 도구가 없어 컴파일된 CSS 파일을 grep해서 확인 — Task 1 Step 14 참고).
