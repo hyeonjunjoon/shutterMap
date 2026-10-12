@@ -92,6 +92,36 @@
   - `413`: 파일이 25MB 초과
   - `415`: 지원하지 않는 형식 (예: gif)
 
+### `GET /photos/me`
+내 사진 목록(마이페이지용). `status`가 `ACTIVE`/`HIDDEN`인 본인 사진만 반환(`DELETED`는 제외) — `HIDDEN`은 운영자가 비공개 처리한 것도 본인은 볼 수 있게 포함. Discovery의 공개 조회(`status=ACTIVE` 하드코딩)와는 분리된 별도 경로.
+
+- **로그인 필요**: 예
+- **요청 query** (전부 선택):
+  | 파라미터 | 기본값 | 설명 |
+  |---|---|---|
+  | `cursor` | 없음 | 이전 응답의 `nextCursor` 값을 그대로 전달 |
+  | `limit` | `20` | 1 이상 정수, 최대 `50` |
+- **성공 응답**: `200`
+  ```json
+  {
+    "items": [
+      {
+        "id": "uuid",
+        "cameraName": "ILCE-7M4",
+        "lensName": "FE 24-70mm F2.8 GM",
+        "thumbnailUrl": "https://.../thumbnail.jpg",
+        "status": "ACTIVE",
+        "visibility": "FUZZY",
+        "likeCount": 2,
+        "createdAt": "2026-03-10T00:00:00.000Z"
+      }
+    ],
+    "nextCursor": "uuid-or-null"
+  }
+  ```
+  - `status`가 `HIDDEN`이면 운영자가 비공개 처리했다는 뜻 — 프론트에서 "비공개 처리됨" 배지 등으로 안내
+- **에러**: `400`(`limit` 형식 오류) · `401`
+
 ### `PATCH /photos/:id/location`
 수동 위치 등록/수정 (PRD 기능 2). GPS 없는 사진은 이 호출이 필요하고, GPS 있는 사진도 다시 호출해 덮어쓸 수 있음.
 

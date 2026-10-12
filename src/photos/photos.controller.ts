@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UnsupportedMediaTypeException,
   UploadedFiles,
@@ -22,6 +23,7 @@ import { PhotoVisibilityService } from './services/photo-visibility.service';
 import { PhotosService } from './photos.service';
 import { SetLocationDto } from './dto/set-location.dto';
 import { SetVisibilityDto } from './dto/set-visibility.dto';
+import { ListMineQueryDto } from './dto/list-mine-query.dto';
 
 const ALLOWED_MIMETYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif'];
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -72,6 +74,14 @@ export class PhotosController {
   @Patch(':id/visibility')
   setVisibility(@Param('id') id: string, @Body() dto: SetVisibilityDto, @Req() req: AuthedRequest) {
     return this.photoVisibilityService.setVisibility(id, req.user.id, dto.visibility);
+  }
+
+  // :id보다 먼저 선언해야 한다 — 안 그러면 'me'가 :id 파라미터로 매칭돼버린다.
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  listMine(@Query() query: ListMineQueryDto, @Req() req: AuthedRequest) {
+    const limit = query.limit ? Number(query.limit) : undefined;
+    return this.photosService.listMine(req.user.id, query.cursor, limit);
   }
 
   @Get(':id')
