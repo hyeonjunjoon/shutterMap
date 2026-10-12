@@ -162,10 +162,11 @@ PRD 플로우 4-1(GPS 있음)/4-2(GPS 없음)을 하나의 마법사로 구현�
 
 ## 8. 전역 처리 방침
 
-- **서버 상태**: TanStack Query. 쿼리키 컨벤션: `['me']`, `['photo', id]`, `['discovery', 'map'|'gallery', filtersObject]`, `['discovery', 'equipment']`, `['photos', 'mine', cursor]`.
+- **서버 상태**: TanStack Query. 쿼리 키는 `web/lib/query-keys.ts` 한 곳에서 관리한다(2026-10-12 engineering review로 수정). 컨벤션: `queryKeys.me` → `['me']`, `queryKeys.photo(id)` → `['photo', id]`, `queryKeys.discovery.map(filters)`/`queryKeys.discovery.gallery(filters)` → `['discovery', 'map'|'gallery', filtersObject]`, `queryKeys.discovery.equipment` → `['discovery', 'equipment']`, `queryKeys.photosMine(filters?)` → `['photos', 'mine']`(또는 필터가 있다면 `['photos', 'mine', filtersObject]`). **cursor/페이지 파라미터는 절대 키에 넣지 않는다** — `useInfiniteQuery`는 키를 하나로 고정하고 cursor를 `pageParam`으로만 받는다. 키에 cursor를 넣으면(이전 버전의 실수) 페이지마다 별도 캐시 엔트리가 생겨 `useInfiniteQuery`의 pages 누적을 못 쓰게 된다 — 마이페이지 목록과 갤러리 무한스크롤 둘 다 해당.
 - **에러 메시지 파싱**: 공통 함수 하나(`extractErrorMessage(response)`)가 `message`의 string/string[] 둘 다 처리해서 사용자에게 보여줄 문자열(또는 배열 join)로 변환한다. 화면마다 따로 처리하지 않는다.
-- **401 처리**: fetch 래퍼의 공통 인터셉터가 처리. 예외: `['me']` 쿼리 자체의 401은 인터셉터를 타지 않고 쿼리 함수 내부에서 `null`로 변환(무한 루프/토스트 스팸 방지).
-- **라우트 가드**: §4 참고 — 미들웨어(가벼운 쿠키 존재 체크) + 페이지 레벨 `/auth/me` 재확인의 2단 구조.
+- **401 처리**: TanStack Query의 `QueryClient`에 등록하는 `queryCache`/`mutationCache`의 전역 `onError` 콜백이 처리한다(2026-10-12 engineering review로 구체화 — `apiClient`를 감싸는 훅이 아니다). 예외: `['me']` 쿼리 자체의 401은 이 콜백을 타지 않고 쿼리 함수 내부에서 `null`로 변환(무한 루프/토스트 스팸 방지). `onError`는 `ApiError`가 아닌 raw 네트워크 에러도 받을 수 있다는 것, 401은 기본 재시도(3회) 대상에서 빼야 한다는 것을 구현 시 같이 처리한다.
+- **라우트 가드**: §4 참고 — `proxy.ts`(Next.js 16부터 `middleware.ts`가 deprecated, 2026-10-12 확인 — 가벼운 쿠키 존재 체크) + 페이지 레벨 `/auth/me` 재확인의 2단 구조.
+- **업로드 진행률**: `fetch` 기반 공용 `apiClient`는 업로드 진행률 이벤트를 지원하지 않는다 — 업로드 화면(§7.3)은 `apiClient`를 재사용하지 않고 `XMLHttpRequest` 기반 별도 함수를 쓴다(2026-10-12 engineering review로 결정).
 
 ## 9. 범위 밖 (이번 스펙에서 다루지 않음)
 

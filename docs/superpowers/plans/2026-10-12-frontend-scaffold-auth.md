@@ -23,7 +23,8 @@
 - 다크 모드가 기본이지만, CSS 구조는 shadcn 표준(`:root`=라이트, `.dark`=오버라이드) 그대로 두고 `next-themes`의 `defaultTheme="dark"`로 기본값을 만든다. (`docs/designs/DESIGN.md`)
 - 색상 토큰은 OKLCH. `--radius-photo`는 shadcn의 `@theme inline` 블록이 아니라 별도의 정적 `@theme { ... }` 블록에 직접 선언한다(라이트/다크로 안 바뀌는 고정값이라 var 간접참조가 필요 없음 — 2026-10-12 2차 스파이크로 재확인). 폰트는 shadcn이 만든 `@theme inline`의 기존 Geist 참조 줄을 새로 추가하지 않고 직접 교체한다. (`docs/designs/globals.css`)
 - `web/`은 이 레포의 사이블링 폴더다(별도 레포 아님). (spec §3)
-- **범위 내 결정**: spec §8이 말하는 "다른 요청의 401을 공통 인터셉터에서 가로채 토스트"는 이미 로그인한 사용자의 세션이 만료된 채로 보호된 액션(업로드/좋아요 등)을 시도하는 경우를 위한 것이다. 이 플랜엔 그런 액션이 아직 하나도 없다(로그인/가입 자체의 401은 "자격증명 틀림"이지 "세션 만료"가 아니라 페이지 인라인 에러로 처리하는 게 맞다). 그 공통 인터셉터는 테스트할 보호된 액션이 실제로 생기는 다음 플랜(업로드 등)에서 추가한다.
+- **범위 내 결정**: spec §8이 말하는 "다른 요청의 401을 공통 인터셉터에서 가로채 토스트"는 이미 로그인한 사용자의 세션이 만료된 채로 보호된 액션(업로드/좋아요 등)을 시도하는 경우를 위한 것이다. 이 플랜엔 그런 액션이 아직 하나도 없다(로그인/가입 자체의 401은 "자격증명 틀림"이지 "세션 만료"가 아니라 페이지 인라인 에러로 처리하는 게 맞다). 그 공통 인터셉터는 테스트할 보호된 액션이 실제로 생기는 다음 플랜(업로드 등)에서 추가한다 — **넣을 위치는 `apiClient`를 감싸는 훅이 아니라, Task 3의 `providers.tsx`가 만드는 `QueryClient`의 `queryCache`/`mutationCache` 전역 `onError` 콜백이다.** `apiClient`는 지금처럼 프레임워크 비의존으로 순수하게 두고(테스트하기 쉽다), `new QueryClient()`(옵션 없음)에 나중에 이 옵션만 추가하면 된다 — 리팩터 불필요. 그 콜백을 실제로 쓸 때 주의할 것: (a) 받는 에러가 `ApiError`만이 아니라 `fetch` 자체가 던지는 네트워크 에러(raw `TypeError`)일 수도 있다 — `error instanceof ApiError && error.status === 401`로 좁혀야 한다(Login/Register 페이지의 catch 블록이 이미 이 패턴을 쓴다), (b) 401은 TanStack Query의 기본 재시도(3회, 지수 백오프) 대상에서 빼야 한다 — 어차피 재시도해도 계속 401만 받는다.
+- **업로드 진행률**: `apiClient`는 `fetch` 기반이라 업로드 진행률(%) 이벤트를 못 받는다(`fetch`엔 그런 API가 없다). spec §7.3이 업로드 중 프로그레스 바를 요구하므로, 업로드 플랜은 `apiClient`를 재사용하지 않고 **`XMLHttpRequest` 기반 별도 업로드 함수(예: `uploadWithProgress()`)를 `lib/`에 새로 추가**한다 — `apiClient`의 에러 포맷/테스트 규칙(string/string[] message 처리 등)은 그대로 가져다 쓰되, 전송 메커니즘만 분리한다.
 - 테스트용 `QueryClient`는 전부 `defaultOptions: { queries: { retry: false } }`로 만든다 — 기본값(최대 3회 재시도, 지수 백오프)이면 에러 케이스 테스트가 느려지거나 `waitFor` 타임아웃에 걸린다.
 - **CORS/쿠키 domain**: 로컬 개발(웹 `:3001`/API `:3000`)은 호스트명이 같아서 쿠키 공유에 문제없지만, 배포 시 웹/API가 다른 호스트명이면 `domain` 속성이 없는 지금 쿠키 설정으로는 Next.js 쪾에서 쿠키가 전혀 안 보일 수 있다. 자세한 내용과 해결책은 `docs/api.md`의 "CORS/쿠키" 메모 참고 — 이 플랜은 로컬 개발이 되는 지점(CORS 추가)까지만 다루고, 배포 시 도메인 전략은 범위 밖이다.
 
@@ -65,6 +66,7 @@ shutter-map/                      (기존 백엔드 레포 루트)
     ├── lib/
     │   ├── api-client.ts               (공용 fetch 래퍼 — 모든 화면이 재사용)
     │   ├── api-client.test.ts
+    │   ├── query-keys.ts               (쿼리 키 factory — 다음 플랜들이 재사용)
     │   └── utils.ts                    (shadcn init이 생성한 cn() 헬퍼, 이번 플랜은 손대지 않음)
     ├── proxy.ts                        (보호된 라우트 리다이렉트 — Next 16은 middleware.ts가 deprecated)
     ├── proxy.test.ts
@@ -429,7 +431,7 @@ git commit -m "feat(web): Next.js 스캐폴드 + Tailwind v4 + shadcn/ui + 디�
 
 **Interfaces:**
 - Consumes: `process.env.NEXT_PUBLIC_API_BASE_URL` (Task 1에서 `.env.local`에 설정됨)
-- Produces: `apiClient<T>(path: string, options?: RequestInit): Promise<T>`, `ApiError` 클래스(`.status: number`, `.message: string`) — Task 3, 5, 6이 전부 이걸 가져다 쓴다. 다음 플랜(업로드)은 `FormData` body로도 이 함수를 호출한다.
+- Produces: `apiClient<T>(path: string, options?: RequestInit): Promise<T>`, `ApiError` 클래스(`.status: number`, `.message: string`) — Task 3, 5, 6이 전부 이걸 가져다 쓴다. `options`를 그대로 `fetch`에 스프레드하므로 `{ signal }`(AbortSignal)을 넘기면 TanStack Query의 `useInfiniteQuery`/`useQuery` 자동 취소가 추가 코드 없이 바로 동작한다(다음 플랜의 지도 뷰포트 팬닝·무한스크롤이 이 경로를 쓴다). 다음 플랜(업로드)은 진행률 표시가 필요해서 이 함수를 재사용하지 않고 별도 함수를 쓴다(Global Constraints "업로드 진행률" 참고) — `FormData` body 자체는 지원하지만 업로드 전용 경로는 아니다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -616,6 +618,7 @@ git commit -m "feat(web): 공용 API 클라이언트 (credentials:include, FormD
 ## Task 3: 전역 인증 상태 (`useMe`) + Providers
 
 **Files:**
+- Create: `web/lib/query-keys.ts`
 - Create: `web/hooks/use-me.ts`
 - Test: `web/hooks/use-me.test.tsx`
 - Create: `web/app/providers.tsx`
@@ -623,9 +626,29 @@ git commit -m "feat(web): 공용 API 클라이언트 (credentials:include, FormD
 
 **Interfaces:**
 - Consumes: `apiClient`, `ApiError` (Task 2)
-- Produces: `useMe(): UseQueryResult<Me | null>` — `Me = { id: string; email: string; ownedCameraName: string | null; ownedCameraRaw: string | null }`. 쿼리키 `['me']`(이후 모든 플랜이 로그인 상태 확인에 재사용). `Providers` 컴포넌트 — children을 `QueryClientProvider` + `ThemeProvider`로 감싼다.
+- Produces: `queryKeys.me` — 다음 플랜(탐색/상세/업로드/마이페이지)이 각자 다른 키 모양을 발명하지 않도록, 쿼리 키를 전부 `web/lib/query-keys.ts` 한 곳에서 관리한다(아래 Step 1 참고). `useMe(): UseQueryResult<Me | null>` — `Me = { id: string; email: string; ownedCameraName: string | null; ownedCameraRaw: string | null }`. `Providers` 컴포넌트 — children을 `QueryClientProvider` + `ThemeProvider`로 감싼다.
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [ ] **Step 1: 쿼리 키 factory 작성**
+
+`web/lib/query-keys.ts`:
+
+```ts
+// 쿼리 키를 한 곳에서 관리한다 — 다음 플랜(탐색/상세/업로드/마이페이지)이 각자
+// 다른 모양의 키를 발명하면 캐시 무효화가 어긋난다.
+//
+// cursor/페이지 파라미터는 절대 키에 넣지 않는다 — useInfiniteQuery는 키를
+// 하나로 고정하고 cursor를 queryFn의 pageParam 인자로만 받는다. 키에 cursor를
+// 넣으면 페이지마다 별도 캐시 엔트리가 생겨서 useInfiniteQuery의 pages 배열
+// 누적을 못 쓰게 된다(예: 마이페이지 목록, 갤러리 무한스크롤이 여기 해당).
+// 필터 객체는 키에 넣는 게 맞다 — 필터가 바뀌면 실제로 다른 쿼리니까.
+export const queryKeys = {
+  me: ['me'] as const,
+};
+```
+
+이 플랜은 `me` 하나만 쓴다 — 아직 존재하지 않는 화면의 키(`photo`, `discovery.gallery` 등)를 미리 만들어두지 않는다(다음 플랜이 실제로 필요할 때 이 파일에 같은 패턴으로 추가한다).
+
+- [ ] **Step 2: 실패하는 테스트 작성**
 
 `web/hooks/use-me.test.tsx`:
 
@@ -688,20 +711,21 @@ describe('useMe', () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [ ] **Step 3: 테스트 실행 → 실패 확인**
 
 ```bash
 cd web && npx vitest run hooks/use-me.test.tsx
 ```
 Expected: FAIL — `Cannot find module './use-me'`.
 
-- [ ] **Step 3: `useMe` 구현**
+- [ ] **Step 4: `useMe` 구현**
 
 `web/hooks/use-me.ts`:
 
 ```ts
 import { useQuery } from '@tanstack/react-query';
 import { apiClient, ApiError } from '@/lib/api-client';
+import { queryKeys } from '@/lib/query-keys';
 
 export interface Me {
   id: string;
@@ -712,7 +736,7 @@ export interface Me {
 
 export function useMe() {
   return useQuery<Me | null>({
-    queryKey: ['me'],
+    queryKey: queryKeys.me,
     queryFn: async () => {
       try {
         return await apiClient<Me>('/auth/me');
@@ -729,14 +753,14 @@ export function useMe() {
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [ ] **Step 5: 테스트 실행 → 통과 확인**
 
 ```bash
 cd web && npx vitest run hooks/use-me.test.tsx
 ```
 Expected: PASS 3/3.
 
-- [ ] **Step 5: Providers 작성 + 루트 레이아웃에 연결**
+- [ ] **Step 6: Providers 작성 + 루트 레이아웃에 연결**
 
 `web/app/providers.tsx`:
 
@@ -773,17 +797,17 @@ import { Providers } from './providers';
       </body>
 ```
 
-- [ ] **Step 6: 전체 테스트 + 빌드 확인**
+- [ ] **Step 7: 전체 테스트 + 빌드 확인**
 
 ```bash
 cd web && npm test && npm run build
 ```
 Expected: 테스트 전부 통과(Task 1의 홈페이지 테스트 포함, 회귀 없음), 빌드 성공.
 
-- [ ] **Step 7: 커밋**
+- [ ] **Step 8: 커밋**
 
 ```bash
-git add web/hooks/use-me.ts web/hooks/use-me.test.tsx web/app/providers.tsx web/app/layout.tsx
+git add web/lib/query-keys.ts web/hooks/use-me.ts web/hooks/use-me.test.tsx web/app/providers.tsx web/app/layout.tsx
 git commit -m "feat(web): useMe 훅 + QueryClientProvider/ThemeProvider — 전역 로그인 상태"
 ```
 
@@ -903,8 +927,8 @@ git commit -m "feat(web): /upload, /me 보호 라우트 proxy.ts (쿠키 존재 
 - Modify: `web/components/ui/` (shadcn `input`, `label` 컴포넌트 추가 — 아직 없음)
 
 **Interfaces:**
-- Consumes: `apiClient`, `ApiError`(Task 2), `useMe`(Task 3), shadcn `Button`(Task 1에서 이미 생성됨)
-- Produces: `/login` 라우트. 로그인 성공 시 `['me']` 쿼리를 무효화하고 `/`로 이동.
+- Consumes: `apiClient`, `ApiError`(Task 2), `useMe`, `queryKeys`(Task 3), shadcn `Button`(Task 1에서 이미 생성됨)
+- Produces: `/login` 라우트. 로그인 성공 시 `queryKeys.me` 쿼리를 무효화하고 `/`로 이동.
 
 - [ ] **Step 1: shadcn Input/Label 컴포넌트 추가**
 
@@ -1009,6 +1033,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiClient, ApiError } from '@/lib/api-client';
+import { queryKeys } from '@/lib/query-keys';
 import { useMe } from '@/hooks/use-me';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
@@ -1032,7 +1057,7 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await apiClient('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.me });
       router.replace('/');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '로그인에 실패했습니다.');
@@ -1105,8 +1130,8 @@ git commit -m "feat(web): 로그인 화면"
 - Test: `web/app/register/page.test.tsx`
 
 **Interfaces:**
-- Consumes: `apiClient`, `ApiError`(Task 2), `useMe`(Task 3), shadcn `Button`/`Input`/`Label`(Task 1, Task 5)
-- Produces: `/register` 라우트. 가입 성공 시(백엔드가 이미 로그인시켜줌) `['me']` 쿼리를 무효화하고 `/`로 이동 — `/auth/login`을 별도로 호출하지 않는다.
+- Consumes: `apiClient`, `ApiError`(Task 2), `useMe`, `queryKeys`(Task 3), shadcn `Button`/`Input`/`Label`(Task 1, Task 5)
+- Produces: `/register` 라우트. 가입 성공 시(백엔드가 이미 로그인시켜줌) `queryKeys.me` 쿼리를 무효화하고 `/`로 이동 — `/auth/login`을 별도로 호출하지 않는다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -1208,6 +1233,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiClient, ApiError } from '@/lib/api-client';
+import { queryKeys } from '@/lib/query-keys';
 import { useMe } from '@/hooks/use-me';
 
 export default function RegisterPage() {
@@ -1231,7 +1257,7 @@ export default function RegisterPage() {
       // 백엔드가 가입과 동시에 로그인 세션 쿠키를 심어준다(docs/api.md) —
       // 별도로 /auth/login을 또 호출하지 않는다.
       await apiClient('/auth/register', { method: 'POST', body: JSON.stringify({ email, password }) });
-      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.me });
       router.replace('/');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '가입에 실패했습니다.');
