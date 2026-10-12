@@ -25,6 +25,7 @@ import { PhotosService } from './photos.service';
 import { SetLocationDto } from './dto/set-location.dto';
 import { SetVisibilityDto } from './dto/set-visibility.dto';
 import { ListMineQueryDto } from './dto/list-mine-query.dto';
+import { UpdatePhotoMetadataDto } from './dto/update-metadata.dto';
 
 const ALLOWED_MIMETYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif'];
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -75,6 +76,12 @@ export class PhotosController {
   @Patch(':id/visibility')
   setVisibility(@Param('id') id: string, @Body() dto: SetVisibilityDto, @Req() req: AuthedRequest) {
     return this.photoVisibilityService.setVisibility(id, req.user.id, dto.visibility);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/metadata')
+  updateMetadata(@Param('id') id: string, @Body() dto: UpdatePhotoMetadataDto, @Req() req: AuthedRequest) {
+    return this.photosService.updateMetadata(id, req.user.id, dto);
   }
 
   // :id보다 먼저 선언해야 한다 — 안 그러면 'me'가 :id 파라미터로 매칭돼버린다.

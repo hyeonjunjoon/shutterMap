@@ -1,7 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PhotoVisibilityService } from './services/photo-visibility.service';
 import { R2StorageService } from './services/r2-storage.service';
+import { UpdatePhotoMetadataDto } from './dto/update-metadata.dto';
 
 export interface MyPhotoItem {
   id: string;
@@ -126,6 +128,27 @@ export class PhotosService {
       })),
       nextCursor: hasMore ? page[page.length - 1].id : null,
     };
+  }
+
+  // 업로드 미리보기/마이페이지에서 EXIF 파싱값을 고치거나 note를 채우는 용도
+  // (PRD 기능1 수용기준 — 렌즈 등 빈 필드는 직접 입력 가능해야 한다).
+  // 보낸 필드만 부분 업데이트한다.
+  async updateMetadata(photoId: string, userId: string, updates: UpdatePhotoMetadataDto): Promise<void> {
+    const photo = await this.prisma.photo.findUnique({ where: { id: photoId } });
+    if (!photo) throw new NotFoundException('사진을 찾을 수 없습니다.');
+    if (photo.userId !== userId) throw new ForbiddenException('본인 사진만 수정할 수 있습니다.');
+
+    const data: Prisma.PhotoUpdateInput = {};
+    if (updates.cameraName !== undefined) data.cameraName = updates.cameraName;
+    if (updates.lensName !== undefined) data.lensName = updates.lensName;
+    if (updates.focalLength !== undefined) data.focalLength = updates.focalLength;
+    if (updates.aperture !== undefined) data.aperture = updates.aperture;
+    if (updates.shutterSpeed !== undefined) data.shutterSpeed = updates.shutterSpeed;
+    if (updates.iso !== undefined) data.iso = updates.iso;
+    if (updates.takenAt !== undefined) data.takenAt = new Date(updates.takenAt);
+    if (updates.note !== undefined) data.note = updates.note;
+
+    await this.prisma.photo.update({ where: { id: photoId }, data });
   }
 
   // 소프트 삭제 — status만 DELETED로 바꾼다. 원본/서빙 이미지는 R2에 그대로
