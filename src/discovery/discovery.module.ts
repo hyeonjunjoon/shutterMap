@@ -5,10 +5,11 @@ import { DiscoveryController } from './discovery.controller';
 import { PhotoFilterService } from './services/photo-filter.service';
 import { DiscoveryMapService } from './services/discovery-map.service';
 import { DiscoveryGalleryService } from './services/discovery-gallery.service';
+import { EquipmentService } from './services/equipment.service';
 
 @Module({
   imports: [PrismaModule, PhotosModule],
   controllers: [DiscoveryController],
-  providers: [PhotoFilterService, DiscoveryMapService, DiscoveryGalleryService],
+  providers: [PhotoFilterService, DiscoveryMapService, DiscoveryGalleryService, EquipmentService],
 })
 export class DiscoveryModule {}

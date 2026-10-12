@@ -3,13 +3,20 @@ import { MapQueryDto } from './dto/map-query.dto';
 import { GalleryQueryDto, GallerySort } from './dto/gallery-query.dto';
 import { DiscoveryMapService } from './services/discovery-map.service';
 import { DiscoveryGalleryService } from './services/discovery-gallery.service';
+import { EquipmentService } from './services/equipment.service';
 
 @Controller('discovery')
 export class DiscoveryController {
   constructor(
     private readonly discoveryMapService: DiscoveryMapService,
     private readonly discoveryGalleryService: DiscoveryGalleryService,
+    private readonly equipmentService: EquipmentService,
   ) {}
+
+  @Get('equipment')
+  getEquipment() {
+    return this.equipmentService.listDistinctNames();
+  }
 
   @Get('map')
   getMap(@Query() query: MapQueryDto) {
