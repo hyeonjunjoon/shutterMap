@@ -34,9 +34,14 @@
   --radius: 0.5rem; /* UI 요소(버튼/카드/인풋/다이얼로그) — shadcn 표준, 8px */
   --radius-photo: 0.125rem; /* 사진 썸네일/이미지 전용 — UI radius와 분리 */
 
-  --font-sans: 'Pretendard', system-ui, sans-serif;
-  /* EXIF/숫자 데이터(조리개·초점거리·ISO·셔터스피드) 전용 — 항상 tabular-nums와 같이 쓴다 */
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* 'Pretendard Variable'은 pretendard npm 패키지의 CSS를 layout.tsx에서
+     import해서 @font-face로 등록한다(next/font/google엔 없는 한글 폰트). */
+  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, system-ui, sans-serif;
+  /* IBM Plex Mono는 next/font/google로 로드하고 --font-ibm-plex-mono 변수로
+     받아서 여기서 참조한다(이름을 그대로 --font-mono로 받으면 next/font가
+     생성하는 변수와 이 파일의 선언이 충돌한다). EXIF/숫자 데이터 전용 —
+     항상 tabular-nums와 같이 쓴다. */
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, monospace;
 }
 
 .dark {
