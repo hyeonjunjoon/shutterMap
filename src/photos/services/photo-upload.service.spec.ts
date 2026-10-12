@@ -83,7 +83,18 @@ describe('PhotoUploadService.uploadPhotos', () => {
     expect(createArgs.cameraRaw).toBe('ILCE-7M4');
     expect(createArgs.lensRaw).toBe('FE 24-70mm F2.8 GM');
     expect(results).toEqual([
-      { id: expect.any(String), cameraRaw: 'ILCE-7M4', lensRaw: 'FE 24-70mm F2.8 GM', hasLocation: true },
+      {
+        id: expect.any(String),
+        cameraRaw: 'ILCE-7M4',
+        lensRaw: 'FE 24-70mm F2.8 GM',
+        hasLocation: true,
+        focalLength: 70,
+        aperture: 2.8,
+        shutterSpeed: '1/100',
+        iso: 400,
+        takenAt: new Date('2026-01-15T01:30:00.000Z'),
+        location: { lat: 37.5, lng: 127.0 },
+      },
     ]);
   });
 
