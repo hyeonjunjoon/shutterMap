@@ -3,9 +3,22 @@
 지금까지 구현된 백엔드(NestJS) API 전체 목록이다. 모듈: Auth, Photos, Discovery, Engagement.
 
 - 모든 응답은 JSON (파일 업로드만 요청이 `multipart/form-data`).
-- 로그인 세션은 httpOnly 쿠키(`session`, JWT)로 발급된다 — 요청 헤더에 토큰을 직접 넣는 방식이 아니라, 브라우저가 쿠키를 자동으로 들고 간다.
 - "로그인 필요"는 `JwtAuthGuard`가 걸려 있다는 뜻 — 쿠키 없거나 유효하지 않으면 401.
 - 쿼리 파라미터의 숫자/위경도 값은 전부 **문자열**로 받는다(`minLat=37.5` 같은 쿼리스트링 그대로) — 서버가 내부에서 `Number()`로 변환한다.
+
+## 인증 방식
+- **쿠키 기반**(토큰을 헤더에 직접 넣는 방식 아님). `POST /auth/login` 성공 시 `Set-Cookie: session=<JWT>` (httpOnly, 7일)로 발급되고, 이후 요청은 브라우저가 자동으로 쿠키를 들고 간다.
+- 프론트에서 호출할 때 `fetch`/`axios` 모두 `credentials: 'include'` (또는 동급 옵션)을 켜야 쿠키가 같이 전송된다 — 꺼져 있으면 로그인했는데도 401이 난다.
+- 커스텀 예외 필터가 없어서 모든 에러가 NestJS 기본 포맷을 그대로 따른다:
+  ```json
+  { "statusCode": 404, "message": "사진을 찾을 수 없습니다.", "error": "Not Found" }
+  ```
+  - `message`는 보통 문자열이지만, **class-validator 검증 실패(400)일 때는 문자열 배열**이다 — 한 요청에서 여러 필드가 동시에 틀리면 여러 개가 들어있을 수 있음:
+    ```json
+    { "statusCode": 400, "message": ["email must be an email", "password must be longer than or equal to 8 characters"], "error": "Bad Request" }
+    ```
+    프론트는 `message`가 string인지 string[]인지 둘 다 처리해야 한다.
+  - 이 문서 전체에서 쓰는 상태코드: `400`(검증 실패) · `401`(비로그인/세션 만료) · `403`(본인 소유 아님) · `404`(리소스 없음) · `409`(중복) · `413`(파일 용량 초과) · `415`(지원 안 하는 파일 형식).
 
 ---
 
