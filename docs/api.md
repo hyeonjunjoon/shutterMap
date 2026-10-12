@@ -25,13 +25,15 @@
 ## Auth (`/auth`)
 
 ### `POST /auth/register`
+가입 즉시 로그인 상태가 된다(PRD 기능6 수용기준) — `login`을 따로 호출할 필요 없음.
+
 - **로그인 필요**: 아니오
 - **요청 body**:
   | 필드 | 타입 | 제약 |
   |---|---|---|
   | `email` | string | 이메일 형식 |
   | `password` | string | 8~72자 |
-- **성공 응답**: `201`
+- **성공 응답**: `201`, `Set-Cookie: session=<JWT>` (httpOnly, 7일 — `login`과 동일)
   ```json
   { "id": "uuid", "email": "user@example.com" }
   ```
@@ -46,8 +48,20 @@
 ### `GET /auth/me`
 - **로그인 필요**: 예
 - **요청**: 없음 (쿠키만)
-- **성공 응답**: `200`, `{ "id": "uuid", "email": "user@example.com" }`
+- **성공 응답**: `200`
+  ```json
+  { "id": "uuid", "email": "user@example.com", "ownedCameraName": "ILCE-7M4", "ownedCameraRaw": "ILCE-7M4" }
+  ```
+  - `ownedCameraName`/`ownedCameraRaw`: 보유 장비. 첫 업로드 전에는 둘 다 `null`, 첫 업로드 시 EXIF 카메라로 자동 설정됨(아직 사용자 확인 전 — `PATCH /auth/me`로 확인/수정)
 - **에러**: `401`(쿠키 없음/위조/만료)
+
+### `PATCH /auth/me`
+보유 장비 확인/변경 (PRD 부록A: "첫 업로드 시 EXIF로 미리 채워 확인받는다"). `ownedCameraRaw`(EXIF 원문 관측값)는 이 엔드포인트로 바뀌지 않음 — `ownedCameraName`만 갱신.
+
+- **로그인 필요**: 예
+- **요청 body**: `{ "ownedCameraName": string }` (1~200자, 빈 문자열 불가)
+- **성공 응답**: `200`, 빈 body
+- **에러**: `400`(빈 문자열/200자 초과) · `401`
 
 ### `POST /auth/logout`
 - **로그인 필요**: 아니오 (로그인 안 된 상태로 호출해도 그냥 200)
@@ -79,12 +93,24 @@
 - **성공 응답**: `201`
   ```json
   [
-    { "id": "uuid", "cameraRaw": "ILCE-7M4", "lensRaw": "FE 24-70mm F2.8 GM", "hasLocation": true },
-    { "id": "uuid", "cameraRaw": null, "lensRaw": null, "hasLocation": false }
+    {
+      "id": "uuid",
+      "cameraRaw": "ILCE-7M4",
+      "lensRaw": "FE 24-70mm F2.8 GM",
+      "hasLocation": true,
+      "focalLength": 70,
+      "aperture": 1.8,
+      "shutterSpeed": "1/100",
+      "iso": 400,
+      "takenAt": "2026-03-10T00:00:00.000Z",
+      "location": { "lat": 37.5, "lng": 127.0 }
+    },
+    { "id": "uuid", "cameraRaw": null, "lensRaw": null, "hasLocation": false, "focalLength": null, "aperture": null, "shutterSpeed": null, "iso": null, "takenAt": null, "location": null }
   ]
   ```
   - `cameraRaw`/`lensRaw`: EXIF에서 읽은 원문 (없으면 `null`, 예: 스크린샷)
   - `hasLocation`: EXIF에 GPS가 있어서 위치가 바로 저장됐는지 — `false`면 `PATCH /photos/:id/location`으로 수동 등록해야 지도에 노출됨
+  - `focalLength`/`aperture`/`shutterSpeed`/`iso`/`takenAt`/`location`: 업로드 **미리보기**용 — 아직 공개범위를 선택하기 전이라 `location`은 공개범위 투영(fuzzy/hidden) 없이 원본 그대로 반환됨(본인만 보는 값). EXIF에 없으면 각각 `null` — 미리보기에서 빈 칸으로 보여주고 `PATCH /photos/:id/metadata`로 사용자가 채울 수 있음
   - 배치 중 하나라도 디코딩에 실패하면 **전체 요청이 거부**되고 아무것도 저장되지 않음(부분 성공 없음)
 - **에러**:
   - `400`: 파일 0개 / 이미지 디코딩 실패(내용이 손상됨) / 파일 개수 초과(multer 자체 에러)
@@ -131,6 +157,24 @@
   - 위치가 실제로 바뀌면 기존 fuzzy 오프셋은 리셋되고, 공개범위가 FUZZY면 새 오프셋이 자동으로 다시 생성됨
 - **에러**: `400`(위경도 형식 오류) · `401` · `403`(본인 사진 아님) · `404`(사진 없음)
 
+### `PATCH /photos/:id/metadata`
+EXIF 파싱값 수정 + 사용자 메모(`note`) 작성 (PRD 기능1 수용기준: "렌즈 필드가 비어 있으면 직접 입력할 수 있다"). 보낸 필드만 부분 업데이트.
+
+- **로그인 필요**: 예 (본인 사진만 가능)
+- **요청 body** (전부 선택, 보낸 필드만 수정됨):
+  | 필드 | 타입 | 제약 |
+  |---|---|---|
+  | `cameraName` | string | 1자 이상 |
+  | `lensName` | string | 1자 이상 |
+  | `focalLength` | number | |
+  | `aperture` | number | |
+  | `shutterSpeed` | string | 1자 이상 (예: `"1/100"`) |
+  | `iso` | number | |
+  | `takenAt` | string | ISO 8601 날짜 |
+  | `note` | string | 1000자 이하. **빈 문자열은 허용**(메모 지우기 용도) |
+- **성공 응답**: `200`, 빈 body
+- **에러**: `400`(타입 오류, 또는 `cameraName`/`lensName`/`shutterSpeed`가 빈 문자열) · `401` · `403`(본인 사진 아님) · `404`
+
 ### `PATCH /photos/:id/visibility`
 위치 공개범위 변경 (PRD 기능 3): `EXACT` / `FUZZY`(기본값) / `HIDDEN`.
 
@@ -143,7 +187,7 @@
 ### `GET /photos/:id`
 사진 상세 (PRD 기능 5).
 
-- **로그인 필요**: 아니오 (전면 공개 열람)
+- **로그인 필요**: 아니오 (전면 공개 열람). 단, 로그인 상태면(쿠키가 있으면) 그 사용자 기준 `likedByMe`가 같이 내려감 — 쿠키가 없거나 유효하지 않아도 401이 아니라 그냥 `likedByMe: false`로 응답(`OptionalJwtAuthGuard`)
 - **요청**: 없음 (path의 `:id`만)
 - **성공 응답**: `200`
   ```json
@@ -162,11 +206,13 @@
     "servingUrl": "https://.../serving.jpg",
     "thumbnailUrl": "https://.../thumbnail.jpg",
     "userId": "uuid",
-    "likeCount": 0
+    "likeCount": 0,
+    "likedByMe": false
   }
   ```
   - `location`: 공개범위에 따라 투영된 좌표. `HIDDEN`이거나 아직 위치가 없으면 `null`
   - `locationLabel`: `"exact"` | `"approximate"`(fuzzy) | `"hidden"` — 프론트에서 "대략적 위치"/"위치 비공개" 안내에 그대로 쓰면 됨
+  - `likedByMe`: 비로그인이거나 로그인했지만 안 눌렀으면 `false`. 좋아요 버튼의 활성/비활성 초기 상태에 그대로 쓰면 됨
 - **에러**: `404`(없거나, 운영자 조치로 `status`가 `ACTIVE`가 아님 — 위치 공개범위의 `HIDDEN`과는 다른 개념)
 
 ### `DELETE /photos/:id`
@@ -190,6 +236,18 @@
 | `lensName` | 렌즈 표시명 정확히 일치 |
 | `minFocalLength`, `maxFocalLength` | 초점거리(mm) 범위, 양쪽 포함 |
 | `minAperture`, `maxAperture` | 조리개(F값) 범위, 양쪽 포함 |
+
+### `GET /discovery/equipment`
+등록된 카메라/렌즈 표시명 distinct 목록 (PRD 기능8 특이사항: "필터 선택지는 DB의 표시명 DISTINCT 목록에서 가져온다"). 업로드 미리보기의 자동완성, 지도/갤러리 필터 드롭다운에 쓴다.
+
+- **로그인 필요**: 아니오
+- **요청**: 없음
+- **성공 응답**: `200`
+  ```json
+  { "cameraNames": ["ILCE-7M4", "X100VI"], "lensNames": ["FE 24-70mm F2.8 GM"] }
+  ```
+  - 다른 discovery 엔드포인트와 동일하게 `status: 'ACTIVE'`인 사진의 이름만 집계 — 비공개/삭제된 사진에만 있는 장비명은 노출 안 됨
+  - 둘 다 알파벳 정렬된 배열, 페이지네이션 없음(개인/소규모 사용 규모 기준)
 
 ### `GET /discovery/map`
 지도 탐색 (PRD 기능 4). 클러스터링은 프론트(supercluster)의 책임 — 이 API는 뷰포트 안의 원시 핀 목록만 반환한다.
