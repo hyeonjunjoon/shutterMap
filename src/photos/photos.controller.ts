@@ -17,6 +17,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { PhotoUploadService } from './services/photo-upload.service';
 import { PhotoLocationService } from './services/photo-location.service';
 import { PhotoVisibilityService } from './services/photo-visibility.service';
@@ -84,9 +85,10 @@ export class PhotosController {
     return this.photosService.listMine(req.user.id, query.cursor, limit);
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
-  getDetail(@Param('id') id: string) {
-    return this.photosService.getDetail(id);
+  getDetail(@Param('id') id: string, @Req() req: Request & { user?: { id: string } }) {
+    return this.photosService.getDetail(id, req.user?.id);
   }
 
   @UseGuards(JwtAuthGuard)

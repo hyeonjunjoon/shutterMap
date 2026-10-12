@@ -39,6 +39,7 @@ export interface PhotoDetailView {
   thumbnailUrl: string;
   userId: string;
   likeCount: number;
+  likedByMe: boolean;
 }
 
 @Injectable()
@@ -49,7 +50,10 @@ export class PhotosService {
     private readonly r2: R2StorageService,
   ) {}
 
-  async getDetail(photoId: string): Promise<PhotoDetailView> {
+  // requestUserId는 OptionalJwtAuthGuard를 통과한 요청자 id — 없으면(비로그인)
+  // likedByMe는 그냥 false다. 공개 엔드포인트의 status=ACTIVE 필터 자체에는
+  // 인증 분기를 섞지 않는다 — likedByMe 계산만 조건부로 추가한다.
+  async getDetail(photoId: string, requestUserId?: string): Promise<PhotoDetailView> {
     const photo = await this.prisma.photo.findUnique({ where: { id: photoId } });
     if (!photo || photo.status !== 'ACTIVE') {
       throw new NotFoundException('사진을 찾을 수 없습니다.');
@@ -59,6 +63,9 @@ export class PhotosService {
     const locationLabel: 'exact' | 'approximate' | 'hidden' =
       photo.visibility === 'HIDDEN' ? 'hidden' : photo.visibility === 'EXACT' ? 'exact' : 'approximate';
     const likeCount = await this.prisma.like.count({ where: { photoId } });
+    const likedByMe = requestUserId
+      ? (await this.prisma.like.findUnique({ where: { userId_photoId: { userId: requestUserId, photoId } } })) != null
+      : false;
 
     return {
       id: photo.id,
@@ -76,6 +83,7 @@ export class PhotosService {
       thumbnailUrl: photo.thumbnailKey ? this.r2.buildPublicUrl(photo.thumbnailKey) : '',
       userId: photo.userId,
       likeCount,
+      likedByMe,
     };
   }
 
