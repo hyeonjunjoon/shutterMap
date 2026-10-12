@@ -19,8 +19,13 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+    const user = await this.authService.register(dto);
+    // PRD 기능6 수용기준: "계정이 생성되고 로그인 상태로 전환된다" — OAuth 콜백과
+    // 동일한 패턴(issueSessionToken + 쿠키)으로 가입 즉시 로그인시킨다.
+    const token = await this.authService.issueSessionToken(user.id, user.email);
+    res.cookie('session', token, SESSION_COOKIE_OPTIONS);
+    return user;
   }
 
   @Post('login')

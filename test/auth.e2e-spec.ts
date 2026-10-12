@@ -11,6 +11,7 @@ const FINAL_FIX_TEST_EMAILS = [
   'dup-test@example.com',
   'wrongpw-test@example.com',
   'shared-email@example.com',
+  'auto-login-test@example.com',
 ];
 
 const AUTH_ME_TEST_EMAILS = [
@@ -150,6 +151,19 @@ describe('Auth — final review fixes', () => {
   afterAll(async () => {
     await prisma.user.deleteMany({ where: { email: { in: FINAL_FIX_TEST_EMAILS } } });
     await app.close();
+  });
+
+  it('logs the user in immediately on register (PRD 수용기준: 가입 즉시 로그인 상태)', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const res = await agent
+      .post('/auth/register')
+      .send({ email: 'auto-login-test@example.com', password: 'password123' })
+      .expect(201);
+
+    expect(res.headers['set-cookie']).toBeDefined();
+    // 같은 agent로 추가 로그인 호출 없이 바로 /auth/me가 돼야 한다.
+    const meRes = await agent.get('/auth/me').expect(200);
+    expect(meRes.body.email).toBe('auto-login-test@example.com');
   });
 
   it('rejects invalid input with 400 (ValidationPipe)', () => {
