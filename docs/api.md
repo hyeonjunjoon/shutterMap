@@ -20,6 +20,21 @@
     프론트는 `message`가 string인지 string[]인지 둘 다 처리해야 한다.
   - 이 문서 전체에서 쓰는 상태코드: `400`(검증 실패) · `401`(비로그인/세션 만료) · `403`(본인 소유 아님) · `404`(리소스 없음) · `409`(중복) · `413`(파일 용량 초과) · `415`(지원 안 하는 파일 형식).
 
+### CORS/쿠키 — 웹과 API가 다른 origin일 때 (2026-10-12 메모)
+
+**현재 상태**: `src/main.ts`에 CORS 설정이 전혀 없다(`app.enableCors()` 없음). 쿠키는 `domain` 속성 없이 발급된다(`SESSION_COOKIE_OPTIONS`, `auth.controller.ts`).
+
+**로컬 개발(웹 `localhost:3001` / API `localhost:3000`)에서 문제가 되는 것**:
+- CORS: 지금 상태로는 포트가 다른 두 origin 간 요청을 브라우저가 막는다. 프론트가 실제로 호출하려면 백엔드에 `app.enableCors({ origin: <웹 URL>, credentials: true })`가 **반드시** 필요하다 — `origin`에 와일드카드(`*`)는 쓸 수 없다(브라우저가 `credentials: true`와 와일드카드 origin의 조합을 거부함).
+- 쿠키: `domain`을 안 정해도 `localhost:3000`이 심은 쿠키는 `localhost:3001`에도 보인다 — 쿠키의 스코프는 **호스트명 기준**이고 포트는 구분하지 않기 때문. 로컬 개발에서는 이 부분이 문제 없다.
+
+**배포 시 웹/API가 다른 호스트명(서브도메인 포함)이면 달라지는 것**:
+- 쿠키가 전혀 안 보일 수 있다. `domain` 미지정 쿠키는 발급한 "정확한 호스트명"에만 묶인다 — 예를 들어 API가 `api.shuttermap.com`에서 쿠키를 심으면, `app.shuttermap.com`(Next.js)에 오는 요청에는 그 쿠키가 실리지 않는다. Next.js의 `proxy.ts`(아래 참고)가 하는 "쿠키 존재 확인"은 **API 서버로 가는 요청**에만 의미가 있고, Next.js 자신에게 온 요청의 쿠키 유무로는 판단할 수 없다는 뜻이다.
+- 해결책: 웹/API를 같은 루트 도메인의 서브도메인으로 배포하고, 쿠키에 `domain: '.shuttermap.com'`을 명시해서 두 서브도메인에 공유되게 한다. 그래야 `sameSite: 'lax'`도 그대로 유지할 수 있다(서브도메인끼리는 "같은 site"로 취급됨).
+- `sameSite: 'none'` + `secure: true`로 완전 크로스사이트를 허용하는 방법도 있지만, 그래도 `domain`을 공유하지 않으면 애초에 쿠키가 안 보이는 문제는 해결 안 된다 — 서브도메인 공유가 먼저다.
+
+**이 메모는 기록용이다** — 실제 `app.enableCors()` 추가는 프론트 1단계 플랜(`docs/superpowers/plans/2026-10-12-frontend-scaffold-auth.md`) Task 0에서 다룬다.
+
 ---
 
 ## Auth (`/auth`)
