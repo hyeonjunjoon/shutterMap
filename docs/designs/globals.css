@@ -1,92 +1,47 @@
 /*
- * ShutterMap — web/app/globals.css에 그대로 복사해서 쓸 토큰.
- * 다크 모드가 기본값이라 :root에 다크 토큰, .light에 라이트 오버라이드를 둔다
- * (일반적인 .dark 오버라이드 구조와 반대). next-themes는 defaultTheme="dark"로
- * 설정하고, 전환 시 .dark가 아니라 .light 클래스를 토글한다.
- * 색상은 HSL(hue saturation% lightness%) 공간 — shadcn 표준 형식.
+ * ShutterMap 디자인 토큰 — 실제 web/app/globals.css는 `npx shadcn@latest init`이
+ * 생성한다(2026-10-12 스파이크로 실제 출력 확인: Tailwind v4 CSS-first, OKLCH,
+ * `:root`=라이트 기본값/`.dark`=다크 오버라이드 구조, base-nova 스타일).
+ * 이 파일은 그 생성된 파일을 통째로 덮어쓰는 게 아니라 — shadcn이 만든
+ * card/popover/chart/sidebar 등 나머지 토큰은 그대로 두고 — 아래 값들만
+ * 덮어쓰라는 뜻이다. 정확한 적용 순서는 DESIGN.md 참고.
+ *
+ * "다크 모드가 기본"은 이 파일의 구조가 아니라 next-themes의
+ * defaultTheme="dark" 설정으로 만든다 — :root는 shadcn 표준대로 라이트
+ * 기본값이고, next-themes가 초기 로드 시 <html>에 dark 클래스를 붙여줘서
+ * 사용자는 다크를 먼저 본다.
  */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme inline {
+  /* shadcn이 자동 생성하는 --radius-sm/md/lg/xl 등은 그대로 두고, 이 프로젝트
+     전용 토큰만 추가한다 — shadcn 표준 변수가 아니다. 스파이크로 컴파일된
+     CSS에서 `.rounded-photo { border-radius: .125rem }`가 실제로 생성되는 걸
+     확인했다(tailwind.config 등록 방식 아님, v3와 다름). */
+  --radius-photo: var(--radius-photo);
+}
 
 :root {
-  /* 다크 모드 (기본) — 배경/뉴트럴은 채도 0%로 완전 무채색 */
-  --background: 0 0% 7%;
-  --foreground: 0 0% 96%;
+  /* shadcn baseColor: "neutral"이 생성하는 background/foreground/card/popover/
+     secondary/muted/accent/destructive/border/input/chart/sidebar-* 값은 이미
+     채도 0(완전 무채색)이라 그대로 둔다 — 아래 3개만 덮어쓴다. */
 
-  --card: 0 0% 11%;
-  --card-foreground: 0 0% 96%;
+  /* 앰버 — 포인트 컬러(버튼/좋아요·선택 상태/지도 마커)에만 쓴다.
+     amber-600, 흰 배경에서 충분한 명암비 확보. */
+  --primary: oklch(0.666 0.179 58.318);
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.666 0.179 58.318);
 
-  --popover: 0 0% 11%;
-  --popover-foreground: 0 0% 96%;
-
-  /* 앰버 — 포인트 컬러(버튼/좋아요·선택 상태/지도 마커)에만 쓴다 */
-  --primary: 38 92% 50%;
-  --primary-foreground: 0 0% 9%;
-
-  --secondary: 0 0% 15%;
-  --secondary-foreground: 0 0% 96%;
-
-  --muted: 0 0% 15%;
-  --muted-foreground: 0 0% 63%;
-
-  --accent: 0 0% 15%;
-  --accent-foreground: 0 0% 96%;
-
-  --destructive: 0 72% 51%;
-  --destructive-foreground: 0 0% 98%;
-
-  --border: 0 0% 18%;
-  --input: 0 0% 18%;
-  --ring: 38 92% 50%;
-
-  /* UI 요소용 radius (버튼/카드/인풋/다이얼로그) */
-  --radius: 0.5rem;
-  /* 사진 썸네일/이미지 전용 radius — shadcn 표준 변수 아님, 이 프로젝트의 추가 토큰 */
-  --radius-photo: 0.125rem;
+  --radius: 0.5rem; /* UI 요소(버튼/카드/인풋/다이얼로그) — shadcn 표준, 8px */
+  --radius-photo: 0.125rem; /* 사진 썸네일/이미지 전용 — UI radius와 분리 */
 
   --font-sans: 'Pretendard', system-ui, sans-serif;
   /* EXIF/숫자 데이터(조리개·초점거리·ISO·셔터스피드) 전용 — 항상 tabular-nums와 같이 쓴다 */
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 }
 
-.light {
-  --background: 0 0% 98%;
-  --foreground: 0 0% 9%;
-
-  --card: 0 0% 100%;
-  --card-foreground: 0 0% 9%;
-
-  --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 9%;
-
-  /* 라이트 배경에서 충분한 명암비를 위해 더 어둡고 채도 높은 앰버 */
-  --primary: 32 95% 44%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 0 0% 94%;
-  --secondary-foreground: 0 0% 9%;
-
-  --muted: 0 0% 94%;
-  --muted-foreground: 0 0% 42%;
-
-  --accent: 0 0% 94%;
-  --accent-foreground: 0 0% 9%;
-
-  --destructive: 0 84% 42%;
-  --destructive-foreground: 0 0% 98%;
-
-  --border: 0 0% 88%;
-  --input: 0 0% 88%;
-  --ring: 32 95% 44%;
-}
-
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground font-sans;
-  }
+.dark {
+  /* amber-500 — 다크 배경에서 더 밝게, 어두운 텍스트로 충분한 명암비 */
+  --primary: oklch(0.769 0.188 70.08);
+  --primary-foreground: oklch(0.145 0 0);
+  --ring: oklch(0.769 0.188 70.08);
 }

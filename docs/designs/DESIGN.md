@@ -21,7 +21,10 @@
 
 ## 적용 방법 (`web/` 스캐폴드 시)
 
-1. `docs/designs/globals.css`의 내용을 `web/app/globals.css`에 그대로 복사한다.
-2. **다크 모드가 기본값**이라 `:root`에 다크 토큰을, `.light`에 라이트 오버라이드를 넣는 구조로 되어 있다 (보통의 `.dark` 오버라이드 구조와 반대). `next-themes`를 `defaultTheme="dark"`로 설정하고, 라이트 모드 전환 시 `.dark`가 아니라 `.light` 클래스를 토글한다.
-3. `--radius`(UI)와 `--radius-photo`(이미지)는 shadcn 표준 변수가 아닌 이 프로젝트의 추가 토큰이다 — `tailwind.config`의 `borderRadius`에 `photo: 'var(--radius-photo)'`로 등록해서 `rounded-photo` 유틸리티로 쓴다.
-4. EXIF 숫자 표시 컴포넌트에는 `font-mono tabular-nums` 클래스를 같이 적용한다.
+**2026-10-12 스파이크로 재확인**: 실제 `npx shadcn@latest init`(Tailwind v4 기준)이 생성하는 구조를 그대로 따른다 — 아래 2번 항목은 최초 작성 때의 가정(HSL, `.light` 오버라이드)에서 스파이크 결과로 수정됨.
+
+1. `docs/designs/globals.css`의 내용을 `web/app/globals.css`에 그대로 복사한다(Tailwind v4 CSS-first 설정 — `tailwind.config.js` 없음, `@theme inline` 블록이 전부).
+2. **색상은 OKLCH** (`oklch(L C H)`), HSL 아님 — 현재 shadcn 생성기가 OKLCH를 쓴다. 구조는 shadcn 표준 그대로 **`:root`=라이트 기본값, `.dark`=다크 오버라이드**다(반전 아님). "다크 모드가 기본"은 CSS 구조가 아니라 `next-themes`의 `defaultTheme="dark"` 설정으로 만든다 — 초기 로드 시 `next-themes`가 `<html>`에 `dark` 클래스를 바로 붙여주므로 사용자는 다크를 기본으로 본다. 이렇게 해야 shadcn이 새 컴포넌트를 추가할 때마다 생성하는 표준 구조와 계속 맞는다.
+3. 뉴트럴(배경/텍스트/카드/보더 등)은 shadcn `baseColor: "neutral"`이 생성하는 값을 그대로 쓴다 — 이미 채도 0(완전 무채색)이라 손댈 필요 없음. `--primary`/`--primary-foreground`/`--ring`만 앰버로 덮어쓴다: 다크 `oklch(0.769 0.188 70.08)`(amber-500), 라이트 `oklch(0.666 0.179 58.318)`(amber-600, 흰 배경 명암비 확보). 정확한 값은 `docs/designs/globals.css` 참고.
+4. `--radius`(UI, 0.5rem)는 shadcn 표준 변수라 `@theme inline`에서 자동으로 `--radius-sm/md/lg/xl` 등 파생값을 만든다(하나만 바꾸면 전체 스케일이 따라간다). `--radius-photo`(이미지, 0.125rem)는 shadcn 표준이 아닌 이 프로젝트의 추가 토큰 — `@theme inline`에 `--radius-photo: var(--radius-photo);` 한 줄만 추가하면 Tailwind v4가 `rounded-photo` 유틸리티를 자동 생성한다(스파이크로 컴파일된 CSS에서 직접 확인함 — `tailwind.config`에 등록하는 게 아니다, v3 방식과 다름).
+5. EXIF 숫자 표시 컴포넌트에는 `font-mono tabular-nums` 클래스를 같이 적용한다.
