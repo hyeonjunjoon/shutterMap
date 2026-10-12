@@ -1,7 +1,6 @@
 # API 목록
 
-지금까지 구현된 백엔드(NestJS) API 전체 목록이다. 모듈: Auth, Photos, Discovery.
-Engagement(좋아요/신고) 모듈은 아직 구현 전이라 이 문서에 없다.
+지금까지 구현된 백엔드(NestJS) API 전체 목록이다. 모듈: Auth, Photos, Discovery, Engagement.
 
 - 모든 응답은 JSON (파일 업로드만 요청이 `multipart/form-data`).
 - 로그인 세션은 httpOnly 쿠키(`session`, JWT)로 발급된다 — 요청 헤더에 토큰을 직접 넣는 방식이 아니라, 브라우저가 쿠키를 자동으로 들고 간다.
@@ -194,7 +193,35 @@ Engagement(좋아요/신고) 모듈은 아직 구현 전이라 이 문서에 없
 
 ---
 
-## 아직 없는 것 (Engagement 모듈, 구현 전)
+## Engagement (`/photos/:id/...`)
+좋아요(PRD 기능 7)와 사진 신고(PRD 기능 9). URL은 `/photos` 하위지만 소유 모듈은 `EngagementModule`로 분리돼 있다.
 
-- 좋아요 토글 (PRD 기능 7)
-- 사진 신고 (PRD 기능 9) — 운영자 조치는 MVP 범위상 어드민 API 없이 DB 직접 조회/수정으로 처리 (PRD 부록A)
+### `POST /photos/:id/like`
+좋아요 토글 — 누른 적 없으면 좋아요로 전환, 이미 눌렀으면 취소.
+
+- **로그인 필요**: 예
+- **요청 body**: 없음
+- **성공 응답**: `201`
+  ```json
+  { "liked": true, "likeCount": 4 }
+  ```
+  - `liked`가 `true`→`false`로 바뀌면 취소된 것, `likeCount`는 항상 그 시점의 실제 좋아요 수(캐시 아님)
+- **에러**: `401`(비로그인) · `404`(사진이 없거나 `ACTIVE` 상태가 아님 — 사진 상세 조회와 동일한 열람 규칙)
+
+### `POST /photos/:id/reports`
+사진 신고 제출. 운영자 조치(비공개/삭제)는 MVP 범위상 어드민 API 없이 운영자가 DB(Prisma Studio 등)를 직접 조회·수정해서 처리한다(PRD 부록A) — 이 엔드포인트는 신고 접수까지만 담당한다.
+
+- **로그인 필요**: 예
+- **요청 body**:
+  | 필드 | 타입 | 제약 |
+  |---|---|---|
+  | `reason` | string | `PRIVACY` \| `INAPPROPRIATE` \| `COPYRIGHT` \| `OTHER` |
+  | `detail` | string | 선택. 1000자 이하 문자열. `reason`이 `OTHER`면 공백만 있는 값 제외 필수 |
+- **성공 응답**: `201`
+  ```json
+  { "id": "uuid", "photoId": "uuid", "reason": "PRIVACY", "status": "PENDING", "createdAt": "2026-03-10T00:00:00.000Z" }
+  ```
+  - `status`는 항상 `PENDING`으로 시작 (`REVIEWED`/`ACTIONED`는 운영자가 DB에서 직접 바꿀 때만 바뀜)
+  - 신고 대상 사진은 `HIDDEN`/`DELETED` 상태여도 접수됨 (좋아요와 달리 존재 여부만 확인 — 이미 조치된 사진에 대한 추가 신고도 유효할 수 있어서)
+  - 같은 사진에 같은 사용자가 여러 번 신고할 수 있음 (중복 방지 없음)
+- **에러**: `400`(`reason`이 enum 값이 아님, 또는 `OTHER`인데 `detail`이 없거나 공백뿐이거나 문자열이 아님) · `401`(비로그인) · `404`(사진 자체가 없음)
