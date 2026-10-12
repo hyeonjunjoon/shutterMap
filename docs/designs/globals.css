@@ -1,0 +1,92 @@
+/*
+ * ShutterMap — web/app/globals.css에 그대로 복사해서 쓸 토큰.
+ * 다크 모드가 기본값이라 :root에 다크 토큰, .light에 라이트 오버라이드를 둔다
+ * (일반적인 .dark 오버라이드 구조와 반대). next-themes는 defaultTheme="dark"로
+ * 설정하고, 전환 시 .dark가 아니라 .light 클래스를 토글한다.
+ * 색상은 HSL(hue saturation% lightness%) 공간 — shadcn 표준 형식.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* 다크 모드 (기본) — 배경/뉴트럴은 채도 0%로 완전 무채색 */
+  --background: 0 0% 7%;
+  --foreground: 0 0% 96%;
+
+  --card: 0 0% 11%;
+  --card-foreground: 0 0% 96%;
+
+  --popover: 0 0% 11%;
+  --popover-foreground: 0 0% 96%;
+
+  /* 앰버 — 포인트 컬러(버튼/좋아요·선택 상태/지도 마커)에만 쓴다 */
+  --primary: 38 92% 50%;
+  --primary-foreground: 0 0% 9%;
+
+  --secondary: 0 0% 15%;
+  --secondary-foreground: 0 0% 96%;
+
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 63%;
+
+  --accent: 0 0% 15%;
+  --accent-foreground: 0 0% 96%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 0 0% 18%;
+  --input: 0 0% 18%;
+  --ring: 38 92% 50%;
+
+  /* UI 요소용 radius (버튼/카드/인풋/다이얼로그) */
+  --radius: 0.5rem;
+  /* 사진 썸네일/이미지 전용 radius — shadcn 표준 변수 아님, 이 프로젝트의 추가 토큰 */
+  --radius-photo: 0.125rem;
+
+  --font-sans: 'Pretendard', system-ui, sans-serif;
+  /* EXIF/숫자 데이터(조리개·초점거리·ISO·셔터스피드) 전용 — 항상 tabular-nums와 같이 쓴다 */
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+.light {
+  --background: 0 0% 98%;
+  --foreground: 0 0% 9%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 9%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 9%;
+
+  /* 라이트 배경에서 충분한 명암비를 위해 더 어둡고 채도 높은 앰버 */
+  --primary: 32 95% 44%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 0 0% 94%;
+  --secondary-foreground: 0 0% 9%;
+
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 42%;
+
+  --accent: 0 0% 94%;
+  --accent-foreground: 0 0% 9%;
+
+  --destructive: 0 84% 42%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 0 0% 88%;
+  --input: 0 0% 88%;
+  --ring: 32 95% 44%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
