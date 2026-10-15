@@ -11,6 +11,11 @@ import { apiClient, ApiError } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useMe } from '@/hooks/use-me';
 
+// 이메일 형식의 대략적인 검증 — 백엔드 @IsEmail()과 정확히 같을 필요는 없고,
+// 네이티브 브라우저 검증(영문 팝업)에 맡기지 않고 우리 쪽에서 먼저 잡기만
+// 하면 된다. 통과한 값은 어차피 백엔드가 한 번 더 검증한다.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function RegisterPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -27,9 +32,16 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    // src/auth/dto/register.dto.ts의 @MinLength(8)과 맞춘 선검증 — 네이티브
-    // minlength 속성(아래)이 실제 브라우저에서는 먼저 막아주지만, 혹시
-    // 그걸 지나쳐도 백엔드의 영문 에러 메시지가 그대로 노출되지 않게 한다.
+    // 폼에 noValidate를 줘서 네이티브 브라우저 검증 팝업(영문)이 뜨지 않게
+    // 하고, 그 자리를 여기 한국어 검증으로 대신한다 — 2026-10-15 /qa에서
+    // 실제 브라우저로 직접 확인: noValidate 없이 minlength/type=email만
+    // 쓰면 한국어 화면에 "Please lengthen this text to 8 characters or
+    // more" 같은 영문 팝업이 뜨고, 이 아래 한국어 에러 처리는 아예 실행도
+    // 안 된다(네이티브 검증이 submit 자체를 막아버림).
+    if (!EMAIL_PATTERN.test(email)) {
+      setError('올바른 이메일 형식이 아닙니다.');
+      return;
+    }
     if (password.length < 8) {
       setError('비밀번호는 8자 이상이어야 합니다.');
       return;
@@ -52,7 +64,7 @@ export default function RegisterPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6">
         <h1 className="text-center text-2xl font-black">회원가입</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">이메일</Label>
             <Input
@@ -73,8 +85,9 @@ export default function RegisterPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               // src/auth/dto/register.dto.ts의 @MinLength(8)/@MaxLength(72)와
-              // 맞춘다 — 네이티브 검증으로 먼저 막아서, 가장 흔한 실패(짧은
-              // 비밀번호)에서 영문 서버 메시지가 그대로 노출되는 걸 피한다.
+              // 맞춘 참고용 속성 — 실제 검증/에러 메시지는 noValidate 때문에
+              // 위 handleSubmit의 한국어 체크가 담당한다. maxLength는
+              // noValidate와 무관하게 입력 자체를 못 하게 막아주므로 그대로 둔다.
               minLength={8}
               maxLength={72}
               required

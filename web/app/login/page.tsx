@@ -13,6 +13,10 @@ import { useMe } from '@/hooks/use-me';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
 
+// 이메일 형식의 대략적인 검증 — 네이티브 브라우저 검증(영문 팝업)에 맡기지
+// 않고 우리 쪽에서 먼저 잡는다. 통과한 값은 어차피 백엔드가 한 번 더 검증한다.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export default function LoginPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -29,6 +33,15 @@ export default function LoginPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // 폼에 noValidate를 줘서 네이티브 브라우저 검증 팝업(영문)이 뜨지 않게
+    // 하고, 그 자리를 여기 한국어 검증으로 대신한다 — 2026-10-15 /qa에서
+    // 실제 브라우저로 직접 확인: noValidate 없이 type=email만 쓰면 한국어
+    // 화면에 "Please include an '@' in the email address" 같은 영문
+    // 팝업이 뜨고, submit 자체가 막혀서 아래 로직은 실행도 안 된다.
+    if (!EMAIL_PATTERN.test(email)) {
+      setError('올바른 이메일 형식이 아닙니다.');
+      return;
+    }
     setSubmitting(true);
     try {
       await apiClient('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
@@ -45,7 +58,7 @@ export default function LoginPage() {
     <main className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6">
         <h1 className="text-center text-2xl font-black">로그인</h1>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">이메일</Label>
             <Input
