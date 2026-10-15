@@ -54,6 +54,17 @@ describe('RegisterPage', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('이미 가입된 이메일입니다.'));
   });
 
+  it('shows a Korean inline error for a too-short password without calling the API (백엔드 영문 에러가 그대로 노출되는 걸 막는다)', async () => {
+    renderWithQuery(<RegisterPage />);
+    await userEvent.type(screen.getByLabelText('이메일'), 'a@b.com');
+    await userEvent.type(screen.getByLabelText('비밀번호'), 'short');
+    await userEvent.click(screen.getByRole('button', { name: '가입하기' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('비밀번호는 8자 이상이어야 합니다.'));
+    const calledPaths = mockedApiClient.mock.calls.map((call) => call[0]);
+    expect(calledPaths).not.toContain('/auth/register');
+  });
+
   it('shows a joined string[] validation message on 400', async () => {
     mockedApiClient.mockImplementation((path: string) => {
       if (path === '/auth/me') return Promise.reject(new ApiError(401, '비로그인'));
@@ -64,9 +75,12 @@ describe('RegisterPage', () => {
     renderWithQuery(<RegisterPage />);
     // input type="email"에 형식이 틀린 값("bad")을 넣으면 jsdom의 네이티브
     // HTML5 제약 검증이 제출 자체를 막아 핸들러가 호출되지 않는다(실제 브라우저와
-    // 동일한 동작) — 형식은 유효하지만 백엔드가 400으로 거부하는 값을 쓴다.
+    // 동일한 동작). 비밀번호도 8자 미만이면 이제 클라이언트 쪽 선검증에 먼저
+    // 걸리므로(위 테스트 참고), 형식은 둘 다 유효하되 백엔드가 400으로 거부하는
+    // 상황을 mock으로 재현한다 — apiClient 자체가 통째로 mock돼 있어 실제
+    // 값과 무관하게 이 400을 돌려준다.
     await userEvent.type(screen.getByLabelText('이메일'), 'short@example.com');
-    await userEvent.type(screen.getByLabelText('비밀번호'), '1');
+    await userEvent.type(screen.getByLabelText('비밀번호'), 'password1');
     await userEvent.click(screen.getByRole('button', { name: '가입하기' }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/email must be an email/));

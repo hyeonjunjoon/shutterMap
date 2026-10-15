@@ -86,4 +86,12 @@ describe('apiClient', () => {
     const callOptions = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(callOptions.headers['Content-Type']).toBe('application/json');
   });
+
+  it('does not set Content-Type on a bodyless GET (불필요한 Content-Type은 단순 요청이 아니게 만들어 CORS preflight를 유발한다)', async () => {
+    mockFetchOnce(200, { ok: true });
+    await apiClient('/auth/me');
+
+    const callOptions = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    expect(callOptions.headers['Content-Type']).toBeUndefined();
+  });
 });

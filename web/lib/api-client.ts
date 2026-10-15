@@ -24,7 +24,10 @@ export async function apiClient<T>(path: string, options: RequestInit = {}): Pro
   // FormData일 때 Content-Type을 직접 지정하면 브라우저가 자동으로 붙이는
   // multipart boundary가 빠져서 서버가 파싱을 못 한다 — 아예 설정 안 하고
   // 브라우저에게 맡긴다(다음 플랜의 사진 업로드가 이 경로를 쓴다).
-  if (!isFormData && !headers['Content-Type']) {
+  // body가 없는 GET에 Content-Type을 붙이면 "단순 요청"이 아니게 돼서
+  // cross-origin(웹:3001/API:3000)일 때 매 요청 앞에 OPTIONS preflight가
+  // 하나씩 더 붙는다 — body가 실제로 있을 때만 설정한다.
+  if (!isFormData && options.body !== undefined && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
 

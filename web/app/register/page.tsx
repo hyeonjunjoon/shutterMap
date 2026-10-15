@@ -27,6 +27,13 @@ export default function RegisterPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    // src/auth/dto/register.dto.ts의 @MinLength(8)과 맞춘 선검증 — 네이티브
+    // minlength 속성(아래)이 실제 브라우저에서는 먼저 막아주지만, 혹시
+    // 그걸 지나쳐도 백엔드의 영문 에러 메시지가 그대로 노출되지 않게 한다.
+    if (password.length < 8) {
+      setError('비밀번호는 8자 이상이어야 합니다.');
+      return;
+    }
     setSubmitting(true);
     try {
       // 백엔드가 가입과 동시에 로그인 세션 쿠키를 심어준다(docs/api.md) —
@@ -65,6 +72,11 @@ export default function RegisterPage() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              // src/auth/dto/register.dto.ts의 @MinLength(8)/@MaxLength(72)와
+              // 맞춘다 — 네이티브 검증으로 먼저 막아서, 가장 흔한 실패(짧은
+              // 비밀번호)에서 영문 서버 메시지가 그대로 노출되는 걸 피한다.
+              minLength={8}
+              maxLength={72}
               required
             />
           </div>

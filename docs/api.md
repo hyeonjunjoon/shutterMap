@@ -20,12 +20,12 @@
     프론트는 `message`가 string인지 string[]인지 둘 다 처리해야 한다.
   - 이 문서 전체에서 쓰는 상태코드: `400`(검증 실패) · `401`(비로그인/세션 만료) · `403`(본인 소유 아님) · `404`(리소스 없음) · `409`(중복) · `413`(파일 용량 초과) · `415`(지원 안 하는 파일 형식).
 
-### CORS/쿠키 — 웹과 API가 다른 origin일 때 (2026-10-12 메모)
+### CORS/쿠키 — 웹과 API가 다른 origin일 때 (2026-10-12 메모, 2026-10-15 CORS 추가 반영)
 
-**현재 상태**: `src/main.ts`에 CORS 설정이 전혀 없다(`app.enableCors()` 없음). 쿠키는 `domain` 속성 없이 발급된다(`SESSION_COOKIE_OPTIONS`, `auth.controller.ts`).
+**현재 상태**: `src/main.ts`가 `WEB_ORIGIN` 환경변수 값과 **정확히 일치하는 origin만** `credentials: true`로 허용한다. `origin`을 문자열로 그냥 넘기면 NestJS가 쓰는 `cors` 패키지가 요청의 실제 Origin과 비교 없이 그 문자열을 무조건 반사해버려서, 함수(`(requestOrigin, callback) => callback(null, requestOrigin === webOrigin)`)로 구현했다 — 끝에 슬래시가 붙거나 대소문자가 다르면 "불일치"로 취급되니 `WEB_ORIGIN` 값은 프론트가 실제로 보내는 Origin 헤더와 글자 그대로 같아야 한다. 쿠키는 `domain` 속성 없이 발급된다(`SESSION_COOKIE_OPTIONS`, `auth.controller.ts`).
 
 **로컬 개발(웹 `localhost:3001` / API `localhost:3000`)에서 문제가 되는 것**:
-- CORS: 지금 상태로는 포트가 다른 두 origin 간 요청을 브라우저가 막는다. 프론트가 실제로 호출하려면 백엔드에 `app.enableCors({ origin: <웹 URL>, credentials: true })`가 **반드시** 필요하다 — `origin`에 와일드카드(`*`)는 쓸 수 없다(브라우저가 `credentials: true`와 와일드카드 origin의 조합을 거부함).
+- CORS: 포트가 다른 두 origin 간 요청은 브라우저가 기본적으로 막는다 — 위 설정으로 해결됨. `origin`에 와일드카드(`*`)는 쓸 수 없다(브라우저가 `credentials: true`와 와일드카드 origin의 조합을 거부함).
 - 쿠키: `domain`을 안 정해도 `localhost:3000`이 심은 쿠키는 `localhost:3001`에도 보인다 — 쿠키의 스코프는 **호스트명 기준**이고 포트는 구분하지 않기 때문. 로컬 개발에서는 이 부분이 문제 없다.
 
 **배포 시 웹/API가 다른 호스트명(서브도메인 포함)이면 달라지는 것**:
