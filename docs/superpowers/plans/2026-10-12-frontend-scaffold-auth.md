@@ -60,6 +60,9 @@ shutter-map/                      (기존 백엔드 레포 루트)
     │       ├── page.tsx
     │       └── page.test.tsx
     ├── components/ui/                 (shadcn init + add input/label이 생성)
+    ├── public/icons/
+    │   ├── kakao-symbol.svg             (카카오 공식 디자인 가이드에서 받은 원본, Task 5)
+    │   └── google-g-logo.svg            (구글 공식 브랜딩 가이드에서 받은 원본, Task 5)
     ├── hooks/
     │   ├── use-me.ts                   (GET /auth/me를 감싸는 TanStack Query 훅)
     │   └── use-me.test.tsx
@@ -925,6 +928,7 @@ git commit -m "feat(web): /upload, /me 보호 라우트 proxy.ts (쿠키 존재 
 - Create: `web/app/login/page.tsx`
 - Test: `web/app/login/page.test.tsx`
 - Modify: `web/components/ui/` (shadcn `input`, `label` 컴포넌트 추가 — 아직 없음)
+- Create: `web/public/icons/kakao-symbol.svg`, `web/public/icons/google-g-logo.svg` (각 사 공식 브랜드 리소스)
 
 **Interfaces:**
 - Consumes: `apiClient`, `ApiError`(Task 2), `useMe`, `queryKeys`(Task 3), shadcn `Button`(Task 1에서 이미 생성됨)
@@ -937,7 +941,19 @@ cd web && npx --yes shadcn@latest add input label
 ```
 Expected: `components/ui/input.tsx`, `components/ui/label.tsx` 생성.
 
-- [ ] **Step 2: 실패하는 테스트 작성**
+- [ ] **Step 2: 카카오/구글 공식 브랜드 아이콘 준비**
+
+두 회사 모두 심볼/로고 자체는 직접 그리거나 변형하면 안 된다 — 카카오는 "심볼의 형태, 비율, 색상은 변경할 수 없다"고 명시하고, 구글은 "G" 로고에 항상 표준 멀티컬러를 포함해야 한다고 명시한다. 그래서 심볼만 공식 리소스에서 그대로 받고, 버튼 컨테이너/레이블(한국어 텍스트)은 우리가 직접 구성한다(둘 다 가이드가 허용하는 범위).
+
+1. [카카오 로그인 디자인 가이드](https://developers.kakao.com/docs/latest/ko/kakaologin/design-guide)에서 카카오 심볼(말풍선) SVG를 받아 `web/public/icons/kakao-symbol.svg`로 저장.
+2. [Sign in with Google 브랜딩 가이드라인](https://developers.google.com/identity/branding-guidelines)의 에셋 다운로드에서 "G" 로고 SVG만 받아 `web/public/icons/google-g-logo.svg`로 저장(버튼 전체 이미지가 아니라 로고만 — 레이블은 "구글로 로그인"을 직접 쓴다).
+
+```bash
+ls web/public/icons/kakao-symbol.svg web/public/icons/google-g-logo.svg
+```
+Expected: 두 파일 모두 존재.
+
+- [ ] **Step 3: 실패하는 테스트 작성**
 
 `web/app/login/page.test.tsx`:
 
@@ -983,6 +999,10 @@ describe('LoginPage', () => {
     const kakaoLink = screen.getByRole('link', { name: /카카오로 로그인/ });
     expect(kakaoLink.tagName).toBe('A');
     expect(kakaoLink.getAttribute('href')).toContain('/auth/kakao');
+
+    const googleLink = screen.getByRole('link', { name: /구글로 로그인/ });
+    expect(googleLink.tagName).toBe('A');
+    expect(googleLink.getAttribute('href')).toContain('/auth/google');
   });
 
   it('logs in and redirects to / on success', async () => {
@@ -1008,17 +1028,37 @@ describe('LoginPage', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않습니다.'),
     );
   });
+
+  it('shows a stable-width loading state while submitting (텍스트만 바뀌고 버튼은 비활성화)', async () => {
+    let resolveLogin!: () => void;
+    mockedApiClient.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.reject(new ApiError(401, '비로그인'));
+      return new Promise((resolve) => {
+        resolveLogin = () => resolve({ ok: true });
+      });
+    });
+    renderWithQuery(<LoginPage />);
+    await userEvent.type(screen.getByLabelText('이메일'), 'a@b.com');
+    await userEvent.type(screen.getByLabelText('비밀번호'), 'password123');
+    await userEvent.click(screen.getByRole('button', { name: '로그인' }));
+
+    const loadingButton = await screen.findByRole('button', { name: '로그인 중...' });
+    expect(loadingButton).toBeDisabled();
+
+    resolveLogin();
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/'));
+  });
 });
 ```
 
-- [ ] **Step 3: 테스트 실행 → 실패 확인**
+- [ ] **Step 4: 테스트 실행 → 실패 확인**
 
 ```bash
 cd web && npx vitest run app/login/page.test.tsx
 ```
 Expected: FAIL — `Cannot find module './page'`.
 
-- [ ] **Step 4: 구현**
+- [ ] **Step 5: 구현**
 
 `web/app/login/page.tsx`:
 
@@ -1067,57 +1107,92 @@ export default function LoginPage() {
   }
 
   return (
-    <main>
-      <h1>로그인</h1>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <Label htmlFor="email">이메일</Label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+    <main className="flex min-h-screen flex-col items-center justify-center p-4">
+      <div className="w-full max-w-sm space-y-6">
+        <h1 className="text-center text-2xl font-black">로그인</h1>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="email">이메일</Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="password">비밀번호</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          {/* w-full: 로딩 중 텍스트("로그인" → "로그인 중...")가 길어져도
+              버튼 폭이 컨테이너 폭(max-w-sm)에 고정돼 있어 레이아웃이 흔들리지 않는다. */}
+          <Button type="submit" disabled={submitting} className="w-full">
+            {submitting ? '로그인 중...' : '로그인'}
+          </Button>
+        </form>
+
+        {/* 카카오/구글은 서버가 OAuth 제공자로 302 리다이렉트하므로 next/link가
+            아니라 실제 <a> 전체 페이지 이동이어야 한다 — fetch로 부르면 안 됨.
+            컨테이너 색상/radius/레이블 색상은 각 사 공식 가이드 수치를 그대로
+            따른다(docs/designs/DESIGN.md가 아니라 각 사 브랜드 규정이 우선).
+            심볼/로고 자체는 Step 2에서 받은 원본 그대로, 비율만 유지한다. */}
+        <div className="space-y-2">
+          <a
+            href={`${API_BASE_URL}/auth/kakao`}
+            className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-[#FEE500] py-3 text-sm font-medium text-black/85"
+          >
+            {/* 고정 18px 아이콘이라 next/image 최적화 파이프라인이 필요 없다 —
+                그걸 쓰면 next.config에 dangerouslyAllowSVG를 추가해야 해서
+                평범한 <img>가 더 적은 변경으로 끝난다. */}
+            <img src="/icons/kakao-symbol.svg" alt="" width={18} height={18} />
+            카카오로 로그인
+          </a>
+          <a
+            href={`${API_BASE_URL}/auth/google`}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#747775] bg-white py-3 text-sm font-medium text-[#1F1F1F] dark:border-[#8E918F] dark:bg-[#131314] dark:text-[#E3E3E3]"
+          >
+            <img src="/icons/google-g-logo.svg" alt="" width={18} height={18} />
+            구글로 로그인
+          </a>
         </div>
-        <div>
-          <Label htmlFor="password">비밀번호</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        {error && <p role="alert">{error}</p>}
-        <Button type="submit" disabled={submitting}>
-          로그인
-        </Button>
-      </form>
-      {/* 카카오/구글은 서버가 OAuth 제공자로 302 리다이렉트하므로 next/link가
-          아니라 실제 <a> 전체 페이지 이동이어야 한다 — fetch로 부르면 안 됨. */}
-      <a href={`${API_BASE_URL}/auth/kakao`}>카카오로 로그인</a>
-      <a href={`${API_BASE_URL}/auth/google`}>구글로 로그인</a>
-      <Link href="/register">회원가입</Link>
+
+        <p className="text-center text-sm">
+          계정이 없으신가요?{' '}
+          <Link href="/register" className="underline">
+            회원가입
+          </Link>
+        </p>
+      </div>
     </main>
   );
 }
 ```
 
-- [ ] **Step 5: 테스트 실행 → 통과 확인**
+- [ ] **Step 6: 테스트 실행 → 통과 확인**
 
 ```bash
 cd web && npx vitest run app/login/page.test.tsx
 ```
-Expected: PASS 3/3.
+Expected: PASS 4/4.
 
-- [ ] **Step 6: 커밋**
+- [ ] **Step 7: 커밋**
 
 ```bash
-git add web/app/login/ web/components/ui/input.tsx web/components/ui/label.tsx
+git add web/app/login/ web/components/ui/input.tsx web/components/ui/label.tsx web/public/icons/
 git commit -m "feat(web): 로그인 화면"
 ```
 
@@ -1208,6 +1283,26 @@ describe('RegisterPage', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/email must be an email/));
   });
+
+  it('shows a stable-width loading state while submitting (텍스트만 바뀌고 버튼은 비활성화)', async () => {
+    let resolveRegister!: () => void;
+    mockedApiClient.mockImplementation((path: string) => {
+      if (path === '/auth/me') return Promise.reject(new ApiError(401, '비로그인'));
+      return new Promise((resolve) => {
+        resolveRegister = () => resolve({ id: 'u1', email: 'a@b.com' });
+      });
+    });
+    renderWithQuery(<RegisterPage />);
+    await userEvent.type(screen.getByLabelText('이메일'), 'a@b.com');
+    await userEvent.type(screen.getByLabelText('비밀번호'), 'password123');
+    await userEvent.click(screen.getByRole('button', { name: '가입하기' }));
+
+    const loadingButton = await screen.findByRole('button', { name: '가입 중...' });
+    expect(loadingButton).toBeDisabled();
+
+    resolveRegister();
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/'));
+  });
 });
 ```
 
@@ -1267,37 +1362,50 @@ export default function RegisterPage() {
   }
 
   return (
-    <main>
-      <h1>회원가입</h1>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <Label htmlFor="email">이메일</Label>
-          <Input
-            id="email"
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <Label htmlFor="password">비밀번호</Label>
-          <Input
-            id="password"
-            type="password"
-            autoComplete="new-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-        </div>
-        {error && <p role="alert">{error}</p>}
-        <Button type="submit" disabled={submitting}>
-          가입하기
-        </Button>
-      </form>
-      <Link href="/login">이미 계정이 있으신가요? 로그인</Link>
+    <main className="flex min-h-screen flex-col items-center justify-center p-4">
+      <div className="w-full max-w-sm space-y-6">
+        <h1 className="text-center text-2xl font-black">회원가입</h1>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="email">이메일</Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="password">비밀번호</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          {/* w-full: 로딩 중 텍스트("가입하기" → "가입 중...")가 길어져도
+              버튼 폭이 컨테이너 폭(max-w-sm)에 고정돼 있어 레이아웃이 흔들리지 않는다. */}
+          <Button type="submit" disabled={submitting} className="w-full">
+            {submitting ? '가입 중...' : '가입하기'}
+          </Button>
+        </form>
+        <p className="text-center text-sm">
+          이미 계정이 있으신가요?{' '}
+          <Link href="/login" className="underline">
+            로그인
+          </Link>
+        </p>
+      </div>
     </main>
   );
 }
@@ -1308,7 +1416,7 @@ export default function RegisterPage() {
 ```bash
 cd web && npx vitest run app/register/page.test.tsx
 ```
-Expected: PASS 3/3.
+Expected: PASS 4/4.
 
 - [ ] **Step 5: 전체 테스트 + 빌드 확인**
 
