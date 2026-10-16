@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
@@ -25,10 +25,22 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  // 'alert' 에러는 setError 시점엔 <p>가 아직 안 그려져 있어서 errorRef.current가
+  // null이다(에러가 있을 때만 조건부 렌더링) — 그래서 .focus()를 그 자리에서
+  // 바로 부르지 않고, 어디로 포커스를 옮길지만 기록해뒀다가 아래 useEffect가
+  // 커밋 이후(= <p>가 실제로 DOM에 붙은 뒤)에 옮긴다.
+  const focusTargetRef = useRef<'email' | 'alert' | null>(null);
 
   useEffect(() => {
     if (me) router.replace('/');
   }, [me, router]);
+
+  useEffect(() => {
+    if (!error) return;
+    (focusTargetRef.current === 'email' ? emailRef.current : errorRef.current)?.focus();
+  }, [error]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,6 +51,7 @@ export default function LoginPage() {
     // 화면에 "Please include an '@' in the email address" 같은 영문
     // 팝업이 뜨고, submit 자체가 막혀서 아래 로직은 실행도 안 된다.
     if (!EMAIL_PATTERN.test(email)) {
+      focusTargetRef.current = 'email';
       setError('올바른 이메일 형식이 아닙니다.');
       return;
     }
@@ -48,6 +61,9 @@ export default function LoginPage() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.me });
       router.replace('/');
     } catch (err) {
+      // 이메일/비밀번호 중 어느 쪽이 틀렸는지 특정 안 되는 서버 에러라 특정
+      // 필드가 아니라 에러 메시지 자체로 포커스를 옮긴다.
+      focusTargetRef.current = 'alert';
       setError(err instanceof ApiError ? err.message : '로그인에 실패했습니다.');
     } finally {
       setSubmitting(false);
@@ -63,8 +79,10 @@ export default function LoginPage() {
             <Label htmlFor="email">이메일</Label>
             <Input
               id="email"
+              ref={emailRef}
               type="email"
               autoComplete="email"
+              spellCheck={false}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -82,14 +100,16 @@ export default function LoginPage() {
             />
           </div>
           {error && (
-            <p role="alert" className="text-sm text-destructive">
+            // tabIndex={-1}: 프로그래밍적으로 focus()는 가능하되 Tab 키 순서에는
+            // 안 끼게 한다 — 에러 발생 시에만 JS로 포커스를 옮기는 용도.
+            <p ref={errorRef} tabIndex={-1} role="alert" className="text-sm text-destructive">
               {error}
             </p>
           )}
-          {/* w-full: 로딩 중 텍스트("로그인" → "로그인 중...")가 길어져도
+          {/* w-full: 로딩 중 텍스트("로그인" → "로그인 중…")가 길어져도
               버튼 폭이 컨테이너 폭(max-w-sm)에 고정돼 있어 레이아웃이 흔들리지 않는다. */}
           <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? '로그인 중...' : '로그인'}
+            {submitting ? '로그인 중…' : '로그인'}
           </Button>
         </form>
 
@@ -101,7 +121,7 @@ export default function LoginPage() {
         <div className="space-y-2">
           <a
             href={`${API_BASE_URL}/auth/kakao`}
-            className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-[#FEE500] py-3 text-sm font-medium text-black/85"
+            className="flex w-full touch-manipulation items-center justify-center gap-2 rounded-[12px] bg-[#FEE500] py-3 text-sm font-medium text-black/85 transition-opacity hover:opacity-90"
           >
             {/* 고정 18px 아이콘이라 next/image 최적화 파이프라인이 필요 없다 —
                 그걸 쓰면 next.config에 dangerouslyAllowSVG를 추가해야 해서
@@ -111,7 +131,7 @@ export default function LoginPage() {
           </a>
           <a
             href={`${API_BASE_URL}/auth/google`}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#747775] bg-white py-3 text-sm font-medium text-[#1F1F1F] dark:border-[#8E918F] dark:bg-[#131314] dark:text-[#E3E3E3]"
+            className="flex w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-[#747775] bg-white py-3 text-sm font-medium text-[#1F1F1F] transition-opacity hover:opacity-90 dark:border-[#8E918F] dark:bg-[#131314] dark:text-[#E3E3E3]"
           >
             <img src="/icons/google-g-logo.svg" alt="" width={18} height={18} />
             구글로 로그인

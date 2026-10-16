@@ -99,7 +99,7 @@ describe('RegisterPage', () => {
     await userEvent.type(screen.getByLabelText('비밀번호'), 'password123');
     await userEvent.click(screen.getByRole('button', { name: '가입하기' }));
 
-    const loadingButton = await screen.findByRole('button', { name: '가입 중...' });
+    const loadingButton = await screen.findByRole('button', { name: '가입 중…' });
     expect(loadingButton).toBeDisabled();
 
     resolveRegister();

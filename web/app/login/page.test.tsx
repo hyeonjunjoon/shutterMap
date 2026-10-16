@@ -82,7 +82,7 @@ describe('LoginPage', () => {
     await userEvent.type(screen.getByLabelText('비밀번호'), 'password123');
     await userEvent.click(screen.getByRole('button', { name: '로그인' }));
 
-    const loadingButton = await screen.findByRole('button', { name: '로그인 중...' });
+    const loadingButton = await screen.findByRole('button', { name: '로그인 중…' });
     expect(loadingButton).toBeDisabled();
 
     resolveLogin();

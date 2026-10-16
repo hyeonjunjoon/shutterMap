@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
@@ -24,10 +24,25 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  // 'alert' 에러는 setError 시점엔 <p>가 아직 안 그려져 있어서 errorRef.current가
+  // null이다(에러가 있을 때만 조건부 렌더링) — 그래서 .focus()를 그 자리에서
+  // 바로 부르지 않고, 어디로 포커스를 옮길지만 기록해뒀다가 아래 useEffect가
+  // 커밋 이후(= <p>가 실제로 DOM에 붙은 뒤)에 옮긴다.
+  const focusTargetRef = useRef<'email' | 'password' | 'alert' | null>(null);
 
   useEffect(() => {
     if (me) router.replace('/');
   }, [me, router]);
+
+  useEffect(() => {
+    if (!error) return;
+    const target =
+      focusTargetRef.current === 'email' ? emailRef.current : focusTargetRef.current === 'password' ? passwordRef.current : errorRef.current;
+    target?.focus();
+  }, [error]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,10 +54,12 @@ export default function RegisterPage() {
     // more" 같은 영문 팝업이 뜨고, 이 아래 한국어 에러 처리는 아예 실행도
     // 안 된다(네이티브 검증이 submit 자체를 막아버림).
     if (!EMAIL_PATTERN.test(email)) {
+      focusTargetRef.current = 'email';
       setError('올바른 이메일 형식이 아닙니다.');
       return;
     }
     if (password.length < 8) {
+      focusTargetRef.current = 'password';
       setError('비밀번호는 8자 이상이어야 합니다.');
       return;
     }
@@ -54,6 +71,9 @@ export default function RegisterPage() {
       await queryClient.invalidateQueries({ queryKey: queryKeys.me });
       router.replace('/');
     } catch (err) {
+      // 이메일 중복(409) 등 특정 필드로 못 좁히는 서버 에러라 에러 메시지
+      // 자체로 포커스를 옮긴다(web-design-guidelines: "focus first error on submit").
+      focusTargetRef.current = 'alert';
       setError(err instanceof ApiError ? err.message : '가입에 실패했습니다.');
     } finally {
       setSubmitting(false);
@@ -69,8 +89,10 @@ export default function RegisterPage() {
             <Label htmlFor="email">이메일</Label>
             <Input
               id="email"
+              ref={emailRef}
               type="email"
               autoComplete="email"
+              spellCheck={false}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -80,6 +102,7 @@ export default function RegisterPage() {
             <Label htmlFor="password">비밀번호</Label>
             <Input
               id="password"
+              ref={passwordRef}
               type="password"
               autoComplete="new-password"
               value={password}
@@ -94,14 +117,14 @@ export default function RegisterPage() {
             />
           </div>
           {error && (
-            <p role="alert" className="text-sm text-destructive">
+            <p ref={errorRef} tabIndex={-1} role="alert" className="text-sm text-destructive">
               {error}
             </p>
           )}
-          {/* w-full: 로딩 중 텍스트("가입하기" → "가입 중...")가 길어져도
+          {/* w-full: 로딩 중 텍스트("가입하기" → "가입 중…")가 길어져도
               버튼 폭이 컨테이너 폭(max-w-sm)에 고정돼 있어 레이아웃이 흔들리지 않는다. */}
           <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? '가입 중...' : '가입하기'}
+            {submitting ? '가입 중…' : '가입하기'}
           </Button>
         </form>
         <p className="text-center text-sm">
