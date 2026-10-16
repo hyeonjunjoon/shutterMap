@@ -94,7 +94,7 @@ shutter-map/                      (기존 백엔드 레포 루트)
 - Consumes: `requireEnv`(`src/common/require-env.ts`, 기존)
 - Produces: 없음(이 플랜의 다른 코드가 의존하지 않음) — 다만 Task 1 이후 `web/`에서 실제 브라우저로 로그인/가입을 테스트하려면 이 Task가 먼저 끝나 있어야 한다.
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 `test/cors.e2e-spec.ts`:
 
@@ -139,14 +139,14 @@ describe('CORS', () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 ```bash
 npm run test:e2e -- test/cors.e2e-spec.ts
 ```
 Expected: FAIL — `WEB_ORIGIN 환경변수가 설정되지 않았습니다.` (`.env`에 아직 없음).
 
-- [ ] **Step 3: `.env`에 `WEB_ORIGIN` 추가 + `main.ts`에 CORS 적용**
+- [x] **Step 3: `.env`에 `WEB_ORIGIN` 추가 + `main.ts`에 CORS 적용**
 
 `.env`에 추가:
 
@@ -172,21 +172,21 @@ async function bootstrap() {
 bootstrap();
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 ```bash
 npm run test:e2e -- test/cors.e2e-spec.ts
 ```
 Expected: PASS 2/2.
 
-- [ ] **Step 5: 전체 백엔드 테스트 회귀 확인**
+- [x] **Step 5: 전체 백엔드 테스트 회귀 확인**
 
 ```bash
 npm test && npm run test:e2e && npm run typecheck && npm run build
 ```
 Expected: 전부 통과(기존 테스트 포함, 회귀 없음).
 
-- [ ] **Step 6: 커밋**
+- [x] **Step 6: 커밋**
 
 ```bash
 git add src/main.ts test/cors.e2e-spec.ts
@@ -211,7 +211,7 @@ git commit -m "feat: 프론트(WEB_ORIGIN)에서 호출 가능하도록 CORS 설
 **Interfaces:**
 - Produces: `web/` 프로젝트(아래 Task들이 전부 이 안에 파일을 추가한다). `web/app/layout.tsx`의 `RootLayout` — Task 3이 이 파일을 수정해 `<Providers>`로 children을 감싼다.
 
-- [ ] **Step 1: Next.js 프로젝트 생성**
+- [x] **Step 1: Next.js 프로젝트 생성**
 
 리포 루트(`shutter-map/`)에서:
 
@@ -219,21 +219,21 @@ git commit -m "feat: 프론트(WEB_ORIGIN)에서 호출 가능하도록 CORS 설
 npx --yes create-next-app@16.4.0 web --typescript --tailwind --eslint --app --src-dir=false --import-alias "@/*" --use-npm --yes
 ```
 
-- [ ] **Step 2: 빌드 확인**
+- [x] **Step 2: 빌드 확인**
 
 ```bash
 cd web && npm run build
 ```
 Expected: `Compiled successfully`로 끝남 (에러 없음).
 
-- [ ] **Step 3: shadcn/ui 초기화**
+- [x] **Step 3: shadcn/ui 초기화**
 
 ```bash
 cd web && npx --yes shadcn@latest init -d
 ```
 Expected: `Project initialization completed.` — `components.json`, `components/ui/button.tsx`, `lib/utils.ts` 생성, `app/globals.css` 갱신.
 
-- [ ] **Step 4: 나머지 의존성 설치 (버전 고정 — 스파이크로 검증된 조합)**
+- [x] **Step 4: 나머지 의존성 설치 (버전 고정 — 스파이크로 검증된 조합)**
 
 ```bash
 cd web && npm install next-themes@0.4.6 @tanstack/react-query@5.104.2 pretendard@1.3.9
@@ -241,7 +241,7 @@ npm install -D vite@7.3.7 @vitejs/plugin-react@5.2.0 vitest@5.0.3 @testing-libra
 ```
 Expected: 에러 없이 설치됨. (`@vitejs/plugin-react`의 `latest`인 6.x를 쓰면 `vite@^8`을 요구하면서 `@babel/core@8.0.0-rc` 충돌이 난다 — 반드시 5.2.0으로 고정)
 
-- [ ] **Step 5: 개발 포트를 3001로 고정 (백엔드가 3000을 쓰므로 충돌 방지)**
+- [x] **Step 5: 개발 포트를 3001로 고정 (백엔드가 3000을 쓰므로 충돌 방지)**
 
 `web/package.json`의 `"scripts"`를 아래로 교체:
 
@@ -252,7 +252,7 @@ Expected: 에러 없이 설치됨. (`@vitejs/plugin-react`의 `latest`인 6.x를
 "lint": "eslint"
 ```
 
-- [ ] **Step 6: DESIGN.md 토큰을 globals.css에 적용**
+- [x] **Step 6: DESIGN.md 토큰을 globals.css에 적용**
 
 `web/app/globals.css`를 열어서(shadcn init이 만든 `:root { ... }` / `.dark { ... }` 블록은 그대로 두고) 아래만 바꾼다:
 
@@ -281,7 +281,7 @@ Expected: 에러 없이 설치됨. (`@vitejs/plugin-react`의 `latest`인 6.x를
 
 (정확한 값/이유는 `docs/designs/DESIGN.md`, `docs/designs/globals.css` 참고 — 둘 다 2026-10-12 스파이크로 검증된 내용이다. `--radius-photo`를 `@theme inline`이 아니라 별도 정적 `@theme` 블록에 넣는 이유: 라이트/다크로 안 바뀌는 고정값이라 var 간접참조가 필요 없다.)
 
-- [ ] **Step 7: 루트 레이아웃에 폰트 로딩 적용**
+- [x] **Step 7: 루트 레이아웃에 폰트 로딩 적용**
 
 `web/app/layout.tsx`:
 
@@ -311,7 +311,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 (`suppressHydrationWarning`은 Task 3에서 붙일 `next-themes`가 서버 렌더 이후 `<html>`에 `class="dark"`를 즉시 추가하기 때문에 필요 — 지금 당장은 안 써도 미리 넣어둔다.)
 
-- [ ] **Step 8: 테스트 도구 설정**
+- [x] **Step 8: 테스트 도구 설정**
 
 `web/vitest.config.ts`:
 
@@ -344,7 +344,7 @@ import '@testing-library/jest-dom/vitest';
 "test": "vitest run"
 ```
 
-- [ ] **Step 9: 실패하는 홈페이지 테스트 작성**
+- [x] **Step 9: 실패하는 홈페이지 테스트 작성**
 
 `web/app/page.test.tsx`:
 
@@ -361,14 +361,14 @@ describe('Home page', () => {
 });
 ```
 
-- [ ] **Step 10: 테스트 실행 → 실패 확인**
+- [x] **Step 10: 테스트 실행 → 실패 확인**
 
 ```bash
 cd web && npm test
 ```
 Expected: FAIL — `app/page.tsx`가 아직 "ShutterMap" 제목을 안 가지고 있음(create-next-app의 기본 템플릿 내용).
 
-- [ ] **Step 11: 홈페이지 구현**
+- [x] **Step 11: 홈페이지 구현**
 
 `web/app/page.tsx`:
 
@@ -382,14 +382,14 @@ export default function Home() {
 }
 ```
 
-- [ ] **Step 12: 테스트 실행 → 통과 확인**
+- [x] **Step 12: 테스트 실행 → 통과 확인**
 
 ```bash
 cd web && npm test
 ```
 Expected: PASS 1/1.
 
-- [ ] **Step 13: 환경변수 예시 파일 작성**
+- [x] **Step 13: 환경변수 예시 파일 작성**
 
 `web/.env.local.example`:
 
@@ -399,7 +399,7 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
 
 로컬 개발용 `web/.env.local`도 같은 내용으로 직접 만든다(이 파일은 `.gitignore`에 이미 포함돼 커밋되지 않음 — create-next-app 기본 설정 확인됨). 웹 자신은 3001에서 뜬다(Step 5) — 이 값은 "웹이 호출할 API 주소"이지 웹 자신의 포트가 아니다.
 
-- [ ] **Step 14: 빌드 후 디자인 토큰이 실제로 반영됐는지 확인**
+- [x] **Step 14: 빌드 후 디자인 토큰이 실제로 반영됐는지 확인**
 
 이 세션엔 실제 브라우저 도구가 없어서, 컴파일된 CSS 파일을 직접 읽어서 확인한다(브라우저에서 렌더링했을 때 쓰일 값과 동일한 파일):
 
@@ -411,7 +411,7 @@ grep -o "\-\-font-sans:[^;]*" "$CSS_FILE" | head -1
 ```
 Expected: 첫 줄은 `.rounded-photo{border-radius:.125rem}` 비슷한 결과, 둘째 줄은 `Pretendard`가 포함된 값. 둘 중 하나라도 안 나오면 Step 6을 다시 확인한다.
 
-- [ ] **Step 15: 테스트 재확인 + 커밋**
+- [x] **Step 15: 테스트 재확인 + 커밋**
 
 ```bash
 cd web && npm test && npm run build
@@ -436,7 +436,7 @@ git commit -m "feat(web): Next.js 스캐폴드 + Tailwind v4 + shadcn/ui + 디�
 - Consumes: `process.env.NEXT_PUBLIC_API_BASE_URL` (Task 1에서 `.env.local`에 설정됨)
 - Produces: `apiClient<T>(path: string, options?: RequestInit): Promise<T>`, `ApiError` 클래스(`.status: number`, `.message: string`) — Task 3, 5, 6이 전부 이걸 가져다 쓴다. `options`를 그대로 `fetch`에 스프레드하므로 `{ signal }`(AbortSignal)을 넘기면 TanStack Query의 `useInfiniteQuery`/`useQuery` 자동 취소가 추가 코드 없이 바로 동작한다(다음 플랜의 지도 뷰포트 팬닝·무한스크롤이 이 경로를 쓴다). 다음 플랜(업로드)은 진행률 표시가 필요해서 이 함수를 재사용하지 않고 별도 함수를 쓴다(Global Constraints "업로드 진행률" 참고) — `FormData` body 자체는 지원하지만 업로드 전용 경로는 아니다.
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 `web/lib/api-client.test.ts`:
 
@@ -532,14 +532,14 @@ describe('apiClient', () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 ```bash
 cd web && npx vitest run lib/api-client.test.ts
 ```
 Expected: FAIL — `Cannot find module './api-client'`.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 `web/lib/api-client.ts`:
 
@@ -602,14 +602,14 @@ export async function apiClient<T>(path: string, options: RequestInit = {}): Pro
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 ```bash
 cd web && npx vitest run lib/api-client.test.ts
 ```
 Expected: PASS 8/8.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add web/lib/api-client.ts web/lib/api-client.test.ts
@@ -631,7 +631,7 @@ git commit -m "feat(web): 공용 API 클라이언트 (credentials:include, FormD
 - Consumes: `apiClient`, `ApiError` (Task 2)
 - Produces: `queryKeys.me` — 다음 플랜(탐색/상세/업로드/마이페이지)이 각자 다른 키 모양을 발명하지 않도록, 쿼리 키를 전부 `web/lib/query-keys.ts` 한 곳에서 관리한다(아래 Step 1 참고). `useMe(): UseQueryResult<Me | null>` — `Me = { id: string; email: string; ownedCameraName: string | null; ownedCameraRaw: string | null }`. `Providers` 컴포넌트 — children을 `QueryClientProvider` + `ThemeProvider`로 감싼다.
 
-- [ ] **Step 1: 쿼리 키 factory 작성**
+- [x] **Step 1: 쿼리 키 factory 작성**
 
 `web/lib/query-keys.ts`:
 
@@ -651,7 +651,7 @@ export const queryKeys = {
 
 이 플랜은 `me` 하나만 쓴다 — 아직 존재하지 않는 화면의 키(`photo`, `discovery.gallery` 등)를 미리 만들어두지 않는다(다음 플랜이 실제로 필요할 때 이 파일에 같은 패턴으로 추가한다).
 
-- [ ] **Step 2: 실패하는 테스트 작성**
+- [x] **Step 2: 실패하는 테스트 작성**
 
 `web/hooks/use-me.test.tsx`:
 
@@ -714,14 +714,14 @@ describe('useMe', () => {
 });
 ```
 
-- [ ] **Step 3: 테스트 실행 → 실패 확인**
+- [x] **Step 3: 테스트 실행 → 실패 확인**
 
 ```bash
 cd web && npx vitest run hooks/use-me.test.tsx
 ```
 Expected: FAIL — `Cannot find module './use-me'`.
 
-- [ ] **Step 4: `useMe` 구현**
+- [x] **Step 4: `useMe` 구현**
 
 `web/hooks/use-me.ts`:
 
@@ -756,14 +756,14 @@ export function useMe() {
 }
 ```
 
-- [ ] **Step 5: 테스트 실행 → 통과 확인**
+- [x] **Step 5: 테스트 실행 → 통과 확인**
 
 ```bash
 cd web && npx vitest run hooks/use-me.test.tsx
 ```
 Expected: PASS 3/3.
 
-- [ ] **Step 6: Providers 작성 + 루트 레이아웃에 연결**
+- [x] **Step 6: Providers 작성 + 루트 레이아웃에 연결**
 
 `web/app/providers.tsx`:
 
@@ -800,14 +800,14 @@ import { Providers } from './providers';
       </body>
 ```
 
-- [ ] **Step 7: 전체 테스트 + 빌드 확인**
+- [x] **Step 7: 전체 테스트 + 빌드 확인**
 
 ```bash
 cd web && npm test && npm run build
 ```
 Expected: 테스트 전부 통과(Task 1의 홈페이지 테스트 포함, 회귀 없음), 빌드 성공.
 
-- [ ] **Step 8: 커밋**
+- [x] **Step 8: 커밋**
 
 ```bash
 git add web/lib/query-keys.ts web/hooks/use-me.ts web/hooks/use-me.test.tsx web/app/providers.tsx web/app/layout.tsx
@@ -828,7 +828,7 @@ git commit -m "feat(web): useMe 훅 + QueryClientProvider/ThemeProvider — 전�
 - Consumes: 없음(이 플랜의 다른 코드에 의존하지 않음 — `next/server`만 사용)
 - Produces: `proxy(request: NextRequest): NextResponse` — `/upload`, `/me` 경로를 쿠키 존재 여부로 보호. 다음 플랜(업로드/마이페이지)이 이 보호 목록에 실제 페이지를 추가한다.
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 `web/proxy.test.ts`:
 
@@ -868,14 +868,14 @@ describe('proxy (route guard)', () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 ```bash
 cd web && npx vitest run proxy.test.ts
 ```
 Expected: FAIL — `Cannot find module './proxy'`.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 `web/proxy.ts`:
 
@@ -906,14 +906,14 @@ export const config = {
 };
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 ```bash
 cd web && npx vitest run proxy.test.ts
 ```
 Expected: PASS 4/4.
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add web/proxy.ts web/proxy.test.ts
@@ -934,14 +934,14 @@ git commit -m "feat(web): /upload, /me 보호 라우트 proxy.ts (쿠키 존재 
 - Consumes: `apiClient`, `ApiError`(Task 2), `useMe`, `queryKeys`(Task 3), shadcn `Button`(Task 1에서 이미 생성됨)
 - Produces: `/login` 라우트. 로그인 성공 시 `queryKeys.me` 쿼리를 무효화하고 `/`로 이동.
 
-- [ ] **Step 1: shadcn Input/Label 컴포넌트 추가**
+- [x] **Step 1: shadcn Input/Label 컴포넌트 추가**
 
 ```bash
 cd web && npx --yes shadcn@latest add input label
 ```
 Expected: `components/ui/input.tsx`, `components/ui/label.tsx` 생성.
 
-- [ ] **Step 2: 카카오/구글 공식 브랜드 아이콘 준비**
+- [x] **Step 2: 카카오/구글 공식 브랜드 아이콘 준비**
 
 두 회사 모두 심볼/로고 자체는 직접 그리거나 변형하면 안 된다 — 카카오는 "심볼의 형태, 비율, 색상은 변경할 수 없다"고 명시하고, 구글은 "G" 로고에 항상 표준 멀티컬러를 포함해야 한다고 명시한다. 그래서 심볼만 공식 리소스에서 그대로 받고, 버튼 컨테이너/레이블(한국어 텍스트)은 우리가 직접 구성한다(둘 다 가이드가 허용하는 범위).
 
@@ -953,7 +953,7 @@ ls web/public/icons/kakao-symbol.svg web/public/icons/google-g-logo.svg
 ```
 Expected: 두 파일 모두 존재.
 
-- [ ] **Step 3: 실패하는 테스트 작성**
+- [x] **Step 3: 실패하는 테스트 작성**
 
 `web/app/login/page.test.tsx`:
 
@@ -1051,14 +1051,14 @@ describe('LoginPage', () => {
 });
 ```
 
-- [ ] **Step 4: 테스트 실행 → 실패 확인**
+- [x] **Step 4: 테스트 실행 → 실패 확인**
 
 ```bash
 cd web && npx vitest run app/login/page.test.tsx
 ```
 Expected: FAIL — `Cannot find module './page'`.
 
-- [ ] **Step 5: 구현**
+- [x] **Step 5: 구현**
 
 `web/app/login/page.tsx`:
 
@@ -1182,14 +1182,14 @@ export default function LoginPage() {
 }
 ```
 
-- [ ] **Step 6: 테스트 실행 → 통과 확인**
+- [x] **Step 6: 테스트 실행 → 통과 확인**
 
 ```bash
 cd web && npx vitest run app/login/page.test.tsx
 ```
 Expected: PASS 4/4.
 
-- [ ] **Step 7: 커밋**
+- [x] **Step 7: 커밋**
 
 ```bash
 git add web/app/login/ web/components/ui/input.tsx web/components/ui/label.tsx web/public/icons/
@@ -1208,7 +1208,7 @@ git commit -m "feat(web): 로그인 화면"
 - Consumes: `apiClient`, `ApiError`(Task 2), `useMe`, `queryKeys`(Task 3), shadcn `Button`/`Input`/`Label`(Task 1, Task 5)
 - Produces: `/register` 라우트. 가입 성공 시(백엔드가 이미 로그인시켜줌) `queryKeys.me` 쿼리를 무효화하고 `/`로 이동 — `/auth/login`을 별도로 호출하지 않는다.
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 `web/app/register/page.test.tsx`:
 
@@ -1306,14 +1306,14 @@ describe('RegisterPage', () => {
 });
 ```
 
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
+- [x] **Step 2: 테스트 실행 → 실패 확인**
 
 ```bash
 cd web && npx vitest run app/register/page.test.tsx
 ```
 Expected: FAIL — `Cannot find module './page'`.
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 `web/app/register/page.tsx`:
 
@@ -1411,21 +1411,21 @@ export default function RegisterPage() {
 }
 ```
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [x] **Step 4: 테스트 실행 → 통과 확인**
 
 ```bash
 cd web && npx vitest run app/register/page.test.tsx
 ```
 Expected: PASS 4/4.
 
-- [ ] **Step 5: 전체 테스트 + 빌드 확인**
+- [x] **Step 5: 전체 테스트 + 빌드 확인**
 
 ```bash
 cd web && npm test && npm run build
 ```
 Expected: 전체 테스트 통과(지금까지의 모든 Task 포함, 회귀 없음), 빌드 성공.
 
-- [ ] **Step 6: 커밋**
+- [x] **Step 6: 커밋**
 
 ```bash
 git add web/app/register/
