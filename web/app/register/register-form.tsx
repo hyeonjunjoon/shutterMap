@@ -89,7 +89,7 @@ export function RegisterForm() {
           <h1 className="text-2xl font-black">회원가입</h1>
           {/* 2026-10-16: 로그인/가입 화면이 색도 같고(흑백 통일) 레이아웃도
               거의 같아서, 제목 바로 아래 한 줄로 구분감을 준다. */}
-          <p className="text-sm text-muted-foreground">내가 찍은 곳을 지도에 작례로 남겨보세요</p>
+          <p className="text-sm text-muted-foreground">내가 찍은 곳을 지도에 남겨보세요</p>
         </div>
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div className="space-y-1.5">
