@@ -102,7 +102,7 @@ export default function LoginPage() {
           {error && (
             // tabIndex={-1}: 프로그래밍적으로 focus()는 가능하되 Tab 키 순서에는
             // 안 끼게 한다 — 에러 발생 시에만 JS로 포커스를 옮기는 용도.
-            <p ref={errorRef} tabIndex={-1} role="alert" className="text-sm text-destructive">
+            <p ref={errorRef} tabIndex={-1} role="alert" className="text-xs text-destructive">
               {error}
             </p>
           )}
@@ -115,26 +115,36 @@ export default function LoginPage() {
 
         {/* 카카오/구글은 서버가 OAuth 제공자로 302 리다이렉트하므로 next/link가
             아니라 실제 <a> 전체 페이지 이동이어야 한다 — fetch로 부르면 안 됨.
-            컨테이너 색상/radius/레이블 색상은 각 사 공식 가이드 수치를 그대로
-            따른다(docs/designs/DESIGN.md가 아니라 각 사 브랜드 규정이 우선).
-            심볼/로고 자체는 Step 2에서 받은 원본 그대로, 비율만 유지한다. */}
+            계정이 없으면 콜백이 자동으로 만들어주므로(docs/api.md: "계정 없으면
+            생성") 이 버튼들이 로그인/가입을 겸한다 — "시작하기" 문구로 그 점을
+            드러낸다(2026-10-16 피드백, /register에도 동일하게 추가됨).
+            레이블 색상은 각 사 공식 가이드 수치를 따른다(심볼/배경색은 변경
+            불가). radius는 앱 기본값(8px)으로 통일 — 카카오 가이드의 "컨테이너
+            radius 12px"는 "표준 버튼 권장"일 뿐 심볼처럼 변경 금지 조항이
+            아니라서, 서비스 UI 일관성을 우선했다. 심볼/로고 자체는 원본 그대로,
+            비율만 유지한다. */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          또는
+          <span className="h-px flex-1 bg-border" />
+        </div>
         <div className="space-y-2">
           <a
             href={`${API_BASE_URL}/auth/kakao`}
-            className="flex w-full touch-manipulation items-center justify-center gap-2 rounded-[12px] bg-[#FEE500] py-3 text-sm font-medium text-black/85 transition-opacity hover:opacity-90"
+            className="flex w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-[#FEE500] py-3 text-sm font-medium text-black/85 transition-opacity hover:opacity-90"
           >
             {/* 고정 18px 아이콘이라 next/image 최적화 파이프라인이 필요 없다 —
                 그걸 쓰면 next.config에 dangerouslyAllowSVG를 추가해야 해서
                 평범한 <img>가 더 적은 변경으로 끝난다. */}
             <img src="/icons/kakao-symbol.svg" alt="" width={18} height={18} />
-            카카오로 로그인
+            카카오로 시작하기
           </a>
           <a
             href={`${API_BASE_URL}/auth/google`}
             className="flex w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-[#747775] bg-white py-3 text-sm font-medium text-[#1F1F1F] transition-opacity hover:opacity-90 dark:border-[#8E918F] dark:bg-[#131314] dark:text-[#E3E3E3]"
           >
             <img src="/icons/google-g-logo.svg" alt="" width={18} height={18} />
-            구글로 로그인
+            구글로 시작하기
           </a>
         </div>
 

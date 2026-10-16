@@ -28,6 +28,18 @@ describe('RegisterPage', () => {
     });
   });
 
+  it('renders OAuth links as real <a> tags (fetch가 아니라 전체 페이지 이동이어야 함, 로그인 화면과 동일한 콜백이 가입도 겸한다)', () => {
+    renderWithQuery(<RegisterPage />);
+
+    const kakaoLink = screen.getByRole('link', { name: /카카오로 시작하기/ });
+    expect(kakaoLink.tagName).toBe('A');
+    expect(kakaoLink.getAttribute('href')).toContain('/auth/kakao');
+
+    const googleLink = screen.getByRole('link', { name: /구글로 시작하기/ });
+    expect(googleLink.tagName).toBe('A');
+    expect(googleLink.getAttribute('href')).toContain('/auth/google');
+  });
+
   it('labels inputs with autoComplete="new-password", and registers+redirects without calling /auth/login separately (백엔드가 가입 시 이미 로그인시켜줌)', async () => {
     renderWithQuery(<RegisterPage />);
     expect(screen.getByLabelText('비밀번호')).toHaveAttribute('autoComplete', 'new-password');

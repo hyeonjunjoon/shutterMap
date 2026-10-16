@@ -36,11 +36,11 @@ describe('LoginPage', () => {
     const passwordInput = screen.getByLabelText('비밀번호');
     expect(passwordInput).toHaveAttribute('autoComplete', 'current-password');
 
-    const kakaoLink = screen.getByRole('link', { name: /카카오로 로그인/ });
+    const kakaoLink = screen.getByRole('link', { name: /카카오로 시작하기/ });
     expect(kakaoLink.tagName).toBe('A');
     expect(kakaoLink.getAttribute('href')).toContain('/auth/kakao');
 
-    const googleLink = screen.getByRole('link', { name: /구글로 로그인/ });
+    const googleLink = screen.getByRole('link', { name: /구글로 시작하기/ });
     expect(googleLink.tagName).toBe('A');
     expect(googleLink.getAttribute('href')).toContain('/auth/google');
   });

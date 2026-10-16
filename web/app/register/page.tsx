@@ -11,6 +11,8 @@ import { apiClient, ApiError } from '@/lib/api-client';
 import { queryKeys } from '@/lib/query-keys';
 import { useMe } from '@/hooks/use-me';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000';
+
 // 이메일 형식의 대략적인 검증 — 백엔드 @IsEmail()과 정확히 같을 필요는 없고,
 // 네이티브 브라우저 검증(영문 팝업)에 맡기지 않고 우리 쪽에서 먼저 잡기만
 // 하면 된다. 통과한 값은 어차피 백엔드가 한 번 더 검증한다.
@@ -117,7 +119,7 @@ export default function RegisterPage() {
             />
           </div>
           {error && (
-            <p ref={errorRef} tabIndex={-1} role="alert" className="text-sm text-destructive">
+            <p ref={errorRef} tabIndex={-1} role="alert" className="text-xs text-destructive">
               {error}
             </p>
           )}
@@ -127,6 +129,33 @@ export default function RegisterPage() {
             {submitting ? '가입 중…' : '가입하기'}
           </Button>
         </form>
+
+        {/* 로그인 화면과 같은 OAuth 콜백 — 계정이 없으면 자동으로 만들어주므로
+            (docs/api.md: "계정 없으면 생성") 이 화면에도 "시작하기" 버튼을
+            둬서 소셜 계정으로 바로 가입할 수 있다는 걸 드러낸다(2026-10-16
+            피드백: 원래는 로그인 화면에만 있어서 가입도 겸하는지 알기 어려웠음). */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          또는
+          <span className="h-px flex-1 bg-border" />
+        </div>
+        <div className="space-y-2">
+          <a
+            href={`${API_BASE_URL}/auth/kakao`}
+            className="flex w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-[#FEE500] py-3 text-sm font-medium text-black/85 transition-opacity hover:opacity-90"
+          >
+            <img src="/icons/kakao-symbol.svg" alt="" width={18} height={18} />
+            카카오로 시작하기
+          </a>
+          <a
+            href={`${API_BASE_URL}/auth/google`}
+            className="flex w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-[#747775] bg-white py-3 text-sm font-medium text-[#1F1F1F] transition-opacity hover:opacity-90 dark:border-[#8E918F] dark:bg-[#131314] dark:text-[#E3E3E3]"
+          >
+            <img src="/icons/google-g-logo.svg" alt="" width={18} height={18} />
+            구글로 시작하기
+          </a>
+        </div>
+
         <p className="text-center text-sm">
           이미 계정이 있으신가요?{' '}
           <Link href="/login" className="underline">
