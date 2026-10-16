@@ -59,8 +59,12 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.666 0.179 58.318);
-  --primary-foreground: oklch(0.145 0 0);
+  /* 2026-10-16: 앰버/테라코타 전부 폐기, 흑백(무채색)으로 최종 결정 —
+     shadcn neutral baseColor가 원래 생성하는 값 그대로(라이트: 검정 버튼
+     + 흰 글자). 사진이 콘텐츠의 전부인 서비스라 UI가 색을 안 쓰고 사진이
+     색을 담당하는 쪽을 택했다. */
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -70,7 +74,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.666 0.179 58.318);
+  --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -95,8 +99,10 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.769 0.188 70.08);
-  --primary-foreground: oklch(0.145 0 0);
+  /* 2026-10-16: 흑백(무채색)으로 최종 결정 — shadcn neutral baseColor 원본값
+     (다크: 흰 버튼 + 검정 글자, 라이트와 반대로 반전). */
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -106,7 +112,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.769 0.188 70.08);
+  --ring: oklch(0.556 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

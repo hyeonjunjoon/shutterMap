@@ -6,8 +6,8 @@
 
 - **다크 모드가 기본, 라이트 모드는 보조.** 사진이 콘텐츠의 전부라, 배경이 밝으면 눈이 피로하고 사진의 톤이 왜곡돼 보인다.
 - **배경은 완전 무채색(채도 0%)** — 웜/쿨 톤을 섞지 않는다. 라이트룸/포토샵의 뉴트럴 그레이 작업 배경과 같은 이유: 배경에 색온도가 있으면 그 위에 놓인 사진의 색 인식이 왜곡된다.
-- **앰버(amber)는 포인트 컬러로만** — 버튼, 좋아요/선택 상태, 지도 마커. 배경/텍스트에는 쓰지 않는다. 블루/퍼플 SaaS 클리셰를 피하면서도 "조리개·골든아워"를 연상시키는 이 제품만의 포인트.
-- 라이트 모드에서는 앰버를 더 어둡게(채도↑, 명도↓) 써서 흰 배경에서도 명암비를 확보한다.
+- **포인트 컬러 없음 — 완전 흑백(무채색).** 2026-10-16: 처음엔 앰버("조리개·골든아워" 연상)를 포인트 컬러로 썼다가, 실제 화면에서 보니 쨍한 주황+검정 배경 조합이 원치 않는 다른 브랜드를 연상시킨다는 피드백으로 폐기. 채도를 낮춘 테라코타 절충안도 시도했지만 최종적으로 흑백을 택했다 — 사진이 콘텐츠의 전부인 서비스라 UI가 색을 비우고 사진이 색을 담당하는 쪽(라이트룸/VSCO류 패턴)이 이 도메인에 더 맞다는 판단.
+- `--primary`/`--ring`은 shadcn `baseColor: "neutral"`이 원래 생성하는 값을 그대로 쓴다(별도로 덮어쓰지 않음) — 라이트는 검정 버튼+흰 글자, 다크는 흰 버튼+검정 글자로 자동 반전.
 
 ## 폰트
 
@@ -25,7 +25,7 @@
 
 1. `web/app/globals.css`는 `npx shadcn@latest init`이 생성한다 — 그 파일의 `card/popover/chart/sidebar` 등 나머지 토큰은 그대로 두고, `docs/designs/globals.css`에 적힌 값만 덮어쓴다(통째로 복사하는 게 아님). Tailwind v4 CSS-first 설정이라 `tailwind.config.js`는 없다.
 2. **색상은 OKLCH** (`oklch(L C H)`), HSL 아님. 구조는 shadcn 표준 그대로 **`:root`=라이트 기본값, `.dark`=다크 오버라이드**다(반전 아님). "다크 모드가 기본"은 CSS 구조가 아니라 `next-themes`의 `defaultTheme="dark"` 설정으로 만든다.
-3. 뉴트럴(배경/텍스트/카드/보더 등)은 shadcn `baseColor: "neutral"`이 생성하는 값을 그대로 쓴다. `--primary`/`--ring`만 앰버로 덮어쓴다: 다크 `oklch(0.769 0.188 70.08)`(amber-500), 라이트 `oklch(0.666 0.179 58.318)`(amber-600). **`--primary-foreground`는 라이트/다크 둘 다 어두운 색(`oklch(0.145 0 0)`)으로 통일** — amber-500/600 둘 다 명도가 중간~중상 수준이라, 흰 글자보다 어두운 글자가 명암비가 더 잘 나온다(1차 스파이크 때 라이트 모드를 흰 글자로 잘못 적었던 걸 수정).
+3. **뉴트럴(배경/텍스트/카드/보더/`--primary`/`--ring` 전부)은 shadcn `baseColor: "neutral"`이 생성하는 값을 그대로 쓴다** — 덮어쓰지 않는다(2026-10-16: 앰버 포인트 컬러 폐기, 흑백으로 최종 결정 — 위 "배경/색상" 참고).
 4. `--radius`(UI, 0.5rem)는 shadcn 표준 변수라 자동으로 `--radius-sm/md/lg/xl` 파생값을 만든다. **`--radius-photo`(이미지, 0.125rem)는 shadcn의 `@theme inline` 블록에 넣지 않고, 별도의 정적 `@theme { --radius-photo: 0.125rem; }` 블록으로 선언한다** — 라이트/다크에 따라 안 바뀌는 고정값이라 `@theme inline`의 var 간접참조가 필요 없다(1차 스파이크는 `@theme inline`에 넣었는데, 더 단순한 정적 `@theme` 블록도 동일하게 `rounded-photo` 유틸리티를 만든다는 걸 2차 스파이크로 재확인).
 5. 폰트는 **새 줄을 추가하는 게 아니라, shadcn이 만든 `@theme inline` 블록 안에 이미 있는 `--font-sans: var(--font-sans);`/`--font-mono: var(--font-geist-mono);` 두 줄을 직접 교체**한다(create-next-app이 기본으로 넣어둔 Geist 폰트 참조). 'Pretendard Variable'은 `pretendard` npm 패키지의 CSS를 `layout.tsx`에서 import, IBM Plex Mono는 `next/font/google`로 로드해서 `--font-ibm-plex-mono` 변수로 받는다(그대로 `--font-mono`로 받으면 이 파일의 선언과 충돌). EXIF 숫자 표시 컴포넌트에는 `font-mono tabular-nums`를 같이 적용한다.
 6. **빌드 후 확인**: `npm run build`로 컴파일된 CSS에서 `--font-sans`가 Pretendard를 참조하는지, `.rounded-photo`가 `0.125rem`으로 생성됐는지 직접 확인한다(이 세션엔 실제 브라우저 도구가 없어 컴파일된 CSS 파일을 grep해서 확인 — Task 1 Step 14 참고).

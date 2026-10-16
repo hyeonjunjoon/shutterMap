@@ -40,24 +40,11 @@
 
 :root {
   /* shadcn baseColor: "neutral"이 생성하는 background/foreground/card/popover/
-     secondary/muted/accent/destructive/border/input/chart/sidebar-* 값은 이미
-     채도 0(완전 무채색)이라 그대로 둔다 — 아래만 덮어쓴다. */
-
-  /* 앰버 — 포인트 컬러(버튼/좋아요·선택 상태/지도 마커)에만 쓴다.
-     amber-600, 흰 배경에서 충분한 명암비 확보. amber-600 자체가 중간 밝기라
-     흰 글자보다 어두운 글자가 명암비가 더 잘 나온다 — primary-foreground는
-     라이트/다크 둘 다 어두운 색(near-black)으로 통일. */
-  --primary: oklch(0.666 0.179 58.318);
-  --primary-foreground: oklch(0.145 0 0);
-  --ring: oklch(0.666 0.179 58.318);
+     secondary/muted/accent/destructive/border/input/chart/sidebar-*, 그리고
+     primary/primary-foreground/ring까지 전부 이미 채도 0(완전 무채색)이라
+     그대로 둔다 — 2026-10-16: 앰버 포인트 컬러를 시도했다가 폐기, 최종
+     흑백으로 결정(DESIGN.md "배경/색상" 참고). 이 파일에서 색상 관련으로
+     덮어쓰는 토큰은 이제 없다 — radius만 남는다. */
 
   --radius: 0.5rem; /* UI 요소(버튼/카드/인풋/다이얼로그) — shadcn 표준, 8px */
-}
-
-.dark {
-  /* amber-500 — 다크 배경에서 더 밝게. 다크 배경 위 버튼이라도 글자는 여전히
-     어두운 색이 명암비가 더 좋다(amber-500도 중간-밝은 톤이라 흰 글자보다 유리). */
-  --primary: oklch(0.769 0.188 70.08);
-  --primary-foreground: oklch(0.145 0 0);
-  --ring: oklch(0.769 0.188 70.08);
 }
