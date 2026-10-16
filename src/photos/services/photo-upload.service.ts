@@ -12,6 +12,15 @@ export interface UploadedPhotoResult {
   cameraRaw: string | null;
   lensRaw: string | null;
   hasLocation: boolean;
+  focalLength: number | null;
+  aperture: number | null;
+  shutterSpeed: string | null;
+  iso: number | null;
+  takenAt: Date | null;
+  // 업로드 직후 본인만 보는 미리보기용이라 공개범위 투영 없이 원본 그대로 반환한다 —
+  // 지도/상세조회의 fuzzy/hidden 투영은 본인이 공개범위를 선택하기 전까지는 적용할
+  // 대상이 없다(아직 아무 공개범위도 "확정"되지 않은 상태).
+  location: { lat: number; lng: number } | null;
 }
 
 interface PreparedFile {
@@ -90,7 +99,18 @@ export class PhotoUploadService {
 
       await this.maybeSetOwnedCamera(userId, exif.cameraRaw);
 
-      results.push({ id, cameraRaw: exif.cameraRaw, lensRaw: exif.lensRaw, hasLocation: exif.gps != null });
+      results.push({
+        id,
+        cameraRaw: exif.cameraRaw,
+        lensRaw: exif.lensRaw,
+        hasLocation: exif.gps != null,
+        focalLength: exif.focalLength,
+        aperture: exif.aperture,
+        shutterSpeed: exif.shutterSpeed,
+        iso: exif.iso,
+        takenAt: exif.takenAt,
+        location: exif.gps,
+      });
     }
 
     return results;

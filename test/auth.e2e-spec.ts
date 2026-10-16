@@ -11,19 +11,36 @@ const FINAL_FIX_TEST_EMAILS = [
   'dup-test@example.com',
   'wrongpw-test@example.com',
   'shared-email@example.com',
+  'auto-login-test@example.com',
+];
+
+const AUTH_ME_TEST_EMAILS = [
+  'me-test@example.com',
+  'me-owned-camera@example.com',
+  'logout-test@example.com',
+  'patch-me-blank@example.com',
+  'patch-me@example.com',
 ];
 
 describe('GET /auth/me', () => {
   let app: INestApplication;
+  let prisma: PrismaService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleRef.createNestApplication();
     app.use(cookieParser());
     await app.init();
+    prisma = moduleRef.get(PrismaService);
+    // 같은 이메일로 다시 돌리면 register가 409로 조용히 실패하고 이전 실행의
+    // 데이터로 로그인돼버린다 — 실행 전후 둘 다 정리해서 격리한다.
+    await prisma.user.deleteMany({ where: { email: { in: AUTH_ME_TEST_EMAILS } } });
   });
 
-  afterAll(async () => app.close());
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { email: { in: AUTH_ME_TEST_EMAILS } } });
+    await app.close();
+  });
 
   it('returns 401 without a session cookie', () => {
     return request(app.getHttpServer()).get('/auth/me').expect(401);
@@ -44,12 +61,73 @@ describe('GET /auth/me', () => {
     expect(res.body.email).toBe('me-test@example.com');
   });
 
+  it('returns ownedCameraName/ownedCameraRaw (null before first upload, set value after)', async () => {
+    const agent = request.agent(app.getHttpServer());
+    await agent.post('/auth/register').send({ email: 'me-owned-camera@example.com', password: 'password123' });
+    await agent.post('/auth/login').send({ email: 'me-owned-camera@example.com', password: 'password123' });
+
+    const beforeRes = await agent.get('/auth/me').expect(200);
+    expect(beforeRes.body.ownedCameraName).toBeNull();
+    expect(beforeRes.body.ownedCameraRaw).toBeNull();
+
+    const user = await prisma.user.findFirstOrThrow({ where: { email: 'me-owned-camera@example.com' } });
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { ownedCameraName: 'ILCE-7M4', ownedCameraRaw: 'ILCE-7M4' },
+    });
+
+    const afterRes = await agent.get('/auth/me').expect(200);
+    expect(afterRes.body.ownedCameraName).toBe('ILCE-7M4');
+    expect(afterRes.body.ownedCameraRaw).toBe('ILCE-7M4');
+  });
+
   it('clears the session cookie on logout', async () => {
     const agent = request.agent(app.getHttpServer());
     await agent.post('/auth/register').send({ email: 'logout-test@example.com', password: 'password123' });
     await agent.post('/auth/login').send({ email: 'logout-test@example.com', password: 'password123' });
     await agent.post('/auth/logout').expect(200);
     await agent.get('/auth/me').expect(401);
+  });
+});
+
+describe('PATCH /auth/me', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = moduleRef.createNestApplication();
+    app.use(cookieParser());
+    await app.init();
+    prisma = moduleRef.get(PrismaService);
+    await prisma.user.deleteMany({ where: { email: { in: AUTH_ME_TEST_EMAILS } } });
+  });
+
+  afterAll(async () => {
+    await prisma.user.deleteMany({ where: { email: { in: AUTH_ME_TEST_EMAILS } } });
+    await app.close();
+  });
+
+  it('rejects an unauthenticated request with 401', async () => {
+    await request(app.getHttpServer()).patch('/auth/me').send({ ownedCameraName: 'ILCE-7M4' }).expect(401);
+  });
+
+  it('rejects an empty ownedCameraName with 400', async () => {
+    const agent = request.agent(app.getHttpServer());
+    await agent.post('/auth/register').send({ email: 'patch-me-blank@example.com', password: 'password123' });
+    await agent.post('/auth/login').send({ email: 'patch-me-blank@example.com', password: 'password123' });
+    await agent.patch('/auth/me').send({ ownedCameraName: '' }).expect(400);
+  });
+
+  it('confirms/changes ownedCameraName and persists it', async () => {
+    const agent = request.agent(app.getHttpServer());
+    await agent.post('/auth/register').send({ email: 'patch-me@example.com', password: 'password123' });
+    await agent.post('/auth/login').send({ email: 'patch-me@example.com', password: 'password123' });
+
+    await agent.patch('/auth/me').send({ ownedCameraName: 'X100VI' }).expect(200);
+
+    const res = await agent.get('/auth/me').expect(200);
+    expect(res.body.ownedCameraName).toBe('X100VI');
   });
 });
 
@@ -73,6 +151,19 @@ describe('Auth — final review fixes', () => {
   afterAll(async () => {
     await prisma.user.deleteMany({ where: { email: { in: FINAL_FIX_TEST_EMAILS } } });
     await app.close();
+  });
+
+  it('logs the user in immediately on register (PRD 수용기준: 가입 즉시 로그인 상태)', async () => {
+    const agent = request.agent(app.getHttpServer());
+    const res = await agent
+      .post('/auth/register')
+      .send({ email: 'auto-login-test@example.com', password: 'password123' })
+      .expect(201);
+
+    expect(res.headers['set-cookie']).toBeDefined();
+    // 같은 agent로 추가 로그인 호출 없이 바로 /auth/me가 돼야 한다.
+    const meRes = await agent.get('/auth/me').expect(200);
+    expect(meRes.body.email).toBe('auto-login-test@example.com');
   });
 
   it('rejects invalid input with 400 (ValidationPipe)', () => {

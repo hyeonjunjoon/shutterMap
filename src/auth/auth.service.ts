@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -94,5 +95,24 @@ export class AuthService {
 
   async issueSessionToken(userId: string, email: string): Promise<string> {
     return this.jwtService.signAsync({ sub: userId, email });
+  }
+
+  // GET /auth/me가 쓴다 — JWT 페이로드(id/email)는 가입 시점에 고정되니,
+  // ownedCameraName처럼 나중에 바뀔 수 있는 값은 매번 DB에서 새로 읽는다.
+  async getProfile(userId: string): Promise<{ id: string; email: string; ownedCameraName: string | null; ownedCameraRaw: string | null }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    return {
+      id: user.id,
+      email: user.email,
+      ownedCameraName: user.ownedCameraName,
+      ownedCameraRaw: user.ownedCameraRaw,
+    };
+  }
+
+  // PRD 부록A: "첫 업로드 시 EXIF로 미리 채워 확인받는다" — 업로드가 자동으로
+  // 침묵 설정한 값을 사용자가 여기서 직접 확인/수정한다. ownedCameraRaw(원문)는
+  // 건드리지 않는다 — EXIF가 실제로 관측한 값의 기록으로 그대로 둔다.
+  async updateOwnedCamera(userId: string, dto: UpdateProfileDto): Promise<void> {
+    await this.prisma.user.update({ where: { id: userId }, data: { ownedCameraName: dto.ownedCameraName } });
   }
 }

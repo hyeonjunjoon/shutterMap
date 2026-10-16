@@ -54,10 +54,18 @@ describe('POST /photos', () => {
       .expect(401);
   });
 
-  it('uploads a jpeg with gps exif and creates a photo with location', async () => {
+  it('uploads a jpeg with gps+focal/aperture/shutter/iso exif and returns the parsed fields for preview', async () => {
     const agent = agentWithSession();
     await agent.post('/auth/login').send({ email: TEST_EMAIL, password: 'password123' });
-    const buffer = await buildExifJpeg({ model: 'ILCE-7M4', gpsLat: 37, gpsLng: 127 });
+    const buffer = await buildExifJpeg({
+      model: 'ILCE-7M4',
+      gpsLat: 37,
+      gpsLng: 127,
+      focalLengthMm: 70,
+      fNumber: 1.8,
+      exposureTimeSeconds: 0.01,
+      iso: 400,
+    });
 
     const res = await agent
       .post('/photos')
@@ -65,8 +73,21 @@ describe('POST /photos', () => {
       .expect(201);
 
     expect(res.body).toEqual([
-      { id: expect.any(String), cameraRaw: 'ILCE-7M4', lensRaw: null, hasLocation: true },
+      {
+        id: expect.any(String),
+        cameraRaw: 'ILCE-7M4',
+        lensRaw: null,
+        hasLocation: true,
+        focalLength: 70,
+        aperture: 1.8,
+        shutterSpeed: expect.any(String),
+        iso: 400,
+        takenAt: null,
+        location: { lat: expect.any(Number), lng: expect.any(Number) },
+      },
     ]);
+    expect(res.body[0].location.lat).toBeCloseTo(37, 1);
+    expect(res.body[0].location.lng).toBeCloseTo(127, 1);
 
     const saved = await prisma.photo.findUniqueOrThrow({ where: { id: res.body[0].id } });
     expect(saved.cameraRaw).toBe('ILCE-7M4');
@@ -83,7 +104,18 @@ describe('POST /photos', () => {
       .attach('files', buffer, { filename: 'shot.jpg', contentType: 'image/jpeg' })
       .expect(201);
 
-    expect(res.body[0]).toEqual({ id: expect.any(String), cameraRaw: null, lensRaw: null, hasLocation: false });
+    expect(res.body[0]).toEqual({
+      id: expect.any(String),
+      cameraRaw: null,
+      lensRaw: null,
+      hasLocation: false,
+      focalLength: null,
+      aperture: null,
+      shutterSpeed: null,
+      iso: null,
+      takenAt: null,
+      location: null,
+    });
   });
 
   it('rejects an empty upload (no files) with 400', async () => {

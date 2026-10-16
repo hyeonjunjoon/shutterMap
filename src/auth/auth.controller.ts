@@ -1,9 +1,10 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 const SESSION_COOKIE_OPTIONS = {
@@ -18,8 +19,13 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
+    const user = await this.authService.register(dto);
+    // PRD 기능6 수용기준: "계정이 생성되고 로그인 상태로 전환된다" — OAuth 콜백과
+    // 동일한 패턴(issueSessionToken + 쿠키)으로 가입 즉시 로그인시킨다.
+    const token = await this.authService.issueSessionToken(user.id, user.email);
+    res.cookie('session', token, SESSION_COOKIE_OPTIONS);
+    return user;
   }
 
   @Post('login')
@@ -32,7 +38,13 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@Req() req: Request & { user: { id: string; email: string } }) {
-    return req.user;
+    return this.authService.getProfile(req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me')
+  updateMe(@Body() dto: UpdateProfileDto, @Req() req: Request & { user: { id: string; email: string } }) {
+    return this.authService.updateOwnedCamera(req.user.id, dto);
   }
 
   @Post('logout')
