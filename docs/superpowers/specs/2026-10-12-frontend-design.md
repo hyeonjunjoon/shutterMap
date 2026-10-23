@@ -15,7 +15,7 @@ PRD 4장(Flow)이 이미 사용자 흐름 4개(사진 등록×2, 지도 탐색, 
 PRD 5장에서 이미 확정된 것:
 - **Next.js** — 순수 UI 렌더링과 라우팅만. API Route Handlers는 쓰지 않고, 모든 비즈니스 로직은 NestJS로 통일.
 - **카카오맵 JS SDK** (위치 검색은 카카오 로컬 API)
-- **클라이언트 클러스터링**: supercluster (radius 60px, maxZoom 16)
+- **클라이언트 클러스터링**: supercluster (radius 60px, maxZoom 16 — 표준 웹맵 zoom 스케일 기준, 카카오맵 자체 `level`과는 다른 값. §7.1 "레벨/줌 변환" 참고)
 - **인증**: NestJS가 httpOnly 쿠키로 세션 발급. Next.js는 JWT를 자체 검증하지 않고 매 요청 `GET /auth/me`로 NestJS에 검증을 위임한다 — "인증 로직은 전부 NestJS"라는 원칙을 Next.js 쪽에서 깨지 않기 위함.
 
 이 브레인스토밍에서 새로 정한 것:
@@ -23,6 +23,11 @@ PRD 5장에서 이미 확정된 것:
 - **Tailwind CSS + shadcn/ui** — 분량 있는 디자인 스펙 없이 바로 컴포넌트 구축. 색상/폰트/radius 토큰은 `/design-consultation`으로 가볍게 정했음([`docs/designs/DESIGN.md`](../../designs/DESIGN.md) 참고)
 - **TanStack Query** — 서버 상태(API 호출 결과) 관리. `isLoading`/`isError`/`data` 상태가 화면마다 필요한 로딩/에러 상태를 그대로 제공해서, 매 화면에서 직접 짜지 않아도 됨
 - **레포 구조**: 같은 git 레포에 `web/` 폴더를 사이블링으로 추가(별도 레포 아님) — NestJS/Next.js가 HTTP로만 통신하고 공유 코드가 없어서, 한 레포에서 clone/관리가 더 간단
+
+탐색(`/`) 화면 브레인스토밍(2026-10-22)에서 추가로 정한 것:
+- **nuqs** — URL search params 기반 필터/탭/지도 center·zoom 상태 관리. `history`(push/replace)·`scroll`·디바운스(`limitUrlUpdates`) 옵션이 이 화면이 필요로 하는 요구사항(§7.1)과 거의 그대로 맞아떨어져서, 직접 구현 대비 테스트해야 할 엣지케이스(여러 필터 동시 변경 시 히스토리 배치, 디바운스-URL 갱신 레이스)가 훨씬 줄어든다고 판단. `npm view nuqs dist-tags` 확인: `latest 2.10.2`, peerDependencies `next >=14.2.0` / `react ^19.0.0-0` — 현재 스택(Next 16.4.0, React 19.3.0)과 호환.
+- **supercluster** — §2에 이미 있던 결정 그대로 유지, 좌표 변환·레벨 변환 세부는 §7.1 참고.
+- **shadcn Drawer**(`npx shadcn add drawer`) — 모바일 필터 바텀시트용. 아직 미설치.
 
 ## 3. 레포 구조
 
@@ -51,11 +56,17 @@ shutter-map/            (기존 NestJS 레포 루트)
 ## 5. 디자인 토큰
 
 [`docs/designs/DESIGN.md`](../../designs/DESIGN.md), [`docs/designs/globals.css`](../../designs/globals.css)에 이미 확정:
-- 다크 모드 기본, 완전 무채색 배경 + 앰버 포인트 컬러(버튼/좋아요/지도 마커)
+- **다크 모드 기본, 완전 무채색**(2026-10-16 로그인/가입 사이클에서 앰버 포인트 컬러 폐기 → 흑백 최종 확정, `DESIGN.md` 결정 히스토리 참고). 이 문서의 "앰버 포인트 컬러" 언급은 전부 stale — 전역 포인트 컬러는 없음.
 - 본문/제목: Pretendard(제목은 Black/ExtraBold 굵기). EXIF 숫자 데이터: IBM Plex Mono + `tabular-nums`
 - Radius: UI 요소 8px, 사진 이미지 2px (별도 토큰 `--radius-photo`)
 
 `web/` 스캐폴드 시 `docs/designs/globals.css`를 `web/app/globals.css`로 그대로 복사한다.
+
+**지도 마커(2026-10-22 추가)**: 무채색 원칙 유지 — 기본 핀은 검정 채움+흰 테두리 단색. 색으로 상태를 구분하지 않고, 선택된 핀만 **값 반전(흰 채움+검정 테두리) + 1.3배 확대**로 구분한다(새 컬러 토큰 없음, WCAG "색으로만 구분하지 않기" 원칙과도 맞음).
+
+**카카오맵 다크 테마 미지원(알려진 트레이드오프, 2026-10-22)**: 카카오맵 JS SDK는 다크 타일을 지원하지 않는다. CSS `filter: invert()` 같은 방식은 지도 가독성(글자/핀 색)까지 같이 뒤집혀서 쓰지 않고, 지도 영역은 밝은 타일 그대로 두고 둥근 모서리 컨테이너로 주변 다크 UI와 시각적 경계만 준다. Phase 2에서 지도 공급자 교체 등으로 재검토 가능.
+
+**접근성 대안(2026-10-22)**: 지도는 드래그/캔버스 기반이라 완전한 키보드·스크린리더 접근성을 MVP에서 보장하지 않는다. 키보드/스크린리더 사용자는 같은 데이터를 시맨틱 HTML 그리드로 제공하는 **갤러리 탭을 접근성 대안으로 쓴다** — 이걸 명시적 설계 결정으로 둔다(지도 자체를 접근성 대응하려 하지 않음).
 
 ## 6. 화면 인벤토리
 
@@ -82,12 +93,44 @@ PRD 4장 플로우 기준. 지도/갤러리는 PRD가 "탭 전환 + 필터 상�
 - `GET /discovery/equipment` — 진입 시 1회, 카메라/렌즈 필터 드롭다운 옵션
 
 **상태**
-- 로딩: 지도 틀/썸네일 그리드 스켈레톤. 필터 드롭다운은 `equipment` 로딩 중엔 비활성화
+- 로딩: 지도 틀/썸네일 그리드 스켈레톤(갤러리는 고정 비율 스켈레톤, 아래 참고). 필터 드롭다운은 `equipment` 로딩 중엔 비활성화
 - 빈 상태: 조건에 맞는 사진이 없으면 "아직 이 조건에 맞는 사진이 없습니다" (PRD 기능4/8 수용기준 문구 그대로 사용)
 - 에러: 토스트 + 재시도 버튼. 지도 뷰에서 위경도 형식 에러(400)는 발생하지 않아야 정상(카카오맵이 항상 유효한 뷰포트를 주므로) — 발생하면 버그로 간주하고 로그
 - 권한없음: 없음(전면 공개 열람). 좋아요 버튼은 이 화면에 없음(상세 페이지 전용)
 
+**URL 상태 (2026-10-22 추가, nuqs)**
+- 필터(카메라/렌즈/초점거리/조리개, 지도 탭만 촬영월) 변경: `history: 'replace'`, `scroll: false`. 숫자 입력(초점거리/조리개 min·max)에만 `limitUrlUpdates: { method: 'debounce', timeMs: 300 }` 적용 — 카메라/렌즈/월은 드롭다운 단건 선택이라 디바운스가 필요 없고 즉시 반영.
+- 탭 전환(`view=map|gallery`)만 별도 훅으로 `history: 'push'`.
+- 지도 center/zoom도 URL에 포함하되, 쓰기는 카카오맵 `idle` 이벤트(이동/줌이 끝나 상태가 안정된 시점 — 카카오 JS SDK의 실제 이벤트명, "moveend" 아님) 핸들러 안에서만 호출. 좌표는 소수 5자리로 반올림하고, 반올림 값이 현재 URL과 같으면 쓰기 자체를 스킵.
+- 모든 파라미터의 파싱/검증(잘못된 값 → 기본값 폴백, 초점거리/조리개 min<max 같은 도메인 룰 포함)은 `web/lib/discovery-params.ts` 한 곳에 모으고 유닛테스트로 커버한다.
+- TanStack Query 키는 이 파일의 파싱 결과를 정규화(기본값과 같은 필드는 제거)한 객체를 쓴다 — `cursor`는 기존 규칙대로 키에서 항상 제외.
+- `useSearchParams`(nuqs 내부도 결국 이걸 씀)를 쓰는 컴포넌트는 `<Suspense>`로 감싼다 — nuqs를 쓴다고 이 Next.js 제약이 없어지지 않음.
+- **모바일**: 필터 UI는 "필터" 버튼 하나로 접히고, 클릭 시 **shadcn Drawer**(바텀시트, 드래그로 닫기 지원)로 전체 필터를 보여준다. 데스크톱/태블릿은 인라인 필터 바.
+
+**지도 뷰 기술 (2026-10-22 추가)**
+- SDK 로딩: `next/script`로 `https://dapi.kakao.com/v2/maps/sdk.js?appkey=...&autoload=false`(`libraries=clusterer` 없음 — supercluster를 쓰므로 카카오 자체 클러스터러 불필요) 비동기 로드. `onLoad`가 아니라 **`onReady`** 사용 — `onLoad`는 스크립트가 처음 로드될 때 한 번만 실행되고, SPA 내에서 `/`를 떠났다가 재방문하면(스크립트 재다운로드 안 됨) 다시 실행되지 않는다. `onReady`는 로드 완료 후 + 마운트될 때마다 실행되는 next/script의 공식 설계라 재방문 시에도 지도가 생성된다.
+- 키는 `NEXT_PUBLIC_KAKAO_MAP_JS_KEY`(발급 완료) — 브라우저 노출이 정상(도메인 화이트리스트로 보호되는 공개 키), 백엔드의 `requireEnv()` 규칙은 NestJS 한정이라 여기엔 적용 안 됨.
+- 핀 재조회: PRD 4-3 플로우에 재검색 버튼이 없어 **버튼 없이 `idle`에서 자동 재조회**. 요청 bbox는 뷰포트보다 가로/세로 각 20% 넓게 패딩.
+- `/discovery/map`은 최대 2000개까지 최신순으로 잘라서 응답(잘렸다는 표시 없음, `docs/api.md`). 응답 길이가 2000이면(길이 기반 휴리스틱) 지도 위에 "확대하면 더 많은 작례가 보여요" 배너를 표시.
+- 지도 쿼리는 `placeholderData: keepPreviousData`(TanStack Query v5) — 뷰포트 이동 중 이전 핀이 그대로 보여서 깜빡임 없음.
+- **좌표 변환**: 카카오 `LatLng(lat, lng)` ↔ GeoJSON/supercluster `[lng, lat]`(경도 먼저, 순서 반대) 변환은 `web/lib/geo-convert.ts`의 `toGeoJSONPoint`/`toKakaoLatLng` 두 함수로 통일하고 라운드트립 유닛테스트를 둔다. 이 두 함수 밖에서는 좌표 순서를 직접 다루지 않는다.
+- **레벨/줌 변환**: 카카오맵 `level`은 1~14, 숫자가 작을수록 확대(가까이)·클수록 축소(멀리) — supercluster/표준 웹맵 `zoom`과 방향이 반대고 범위도 다르다(공식 확인: `apis.map.kakao.com/web/sample/changeLevel/`, 데브톡 `devtalk.kakao.com/t/topic/112155`). PRD의 "maxZoom 16"은 카카오 level일 수 없음(최대가 14라 16이 존재하지 않음) — supercluster 자체 기본값이 `maxZoom: 16`인 것과 일치하므로, **supercluster에 직접 넣는 표준 zoom 값**으로 해석한다. 카카오 level → 표준 zoom 변환 상수는 공식 문서에 없어 **플랜 작성 직전 스파이크로 실측**한다(`map.getBounds()`로 위경도 범위를 읽어 미터로 환산 후 표준 Web Mercator `meters/pixel = 156543.034·cos(lat)/2^zoom` 공식을 역산). 추측값을 플랜에 박아두지 않는다.
+- 마커 렌더링: 카카오 네이티브 `Marker`는 이미지 아이콘만 받아 CSS로 못 꾸민다. **개별 핀**은 흑백 SVG를 data URI로 만들어 `kakao.maps.MarkerImage`에 전달(정적 1개). **클러스터 배지**(개수가 매번 다름)는 `kakao.maps.CustomOverlay`(HTML div, 원형+흰 숫자)로 렌더링, 클릭 시 해당 좌표로 줌인. 클러스터 계산은 `supercluster({ radius: 60, maxZoom: <스파이크로 확정한 값> })`.
+- jsdom 한계: 지도 자체(DOM/Canvas 렌더링)는 유닛테스트로 검증 불가(`docs/solutions/integration-issues/jsdom-vs-browser-native-form-validation-gap.md`와 같은 종류의 간극) — `geo-convert.ts`/`discovery-params.ts`의 순수 함수만 유닛테스트하고, 실제 지도 렌더/핀 클릭/클러스터 확장은 구현 뒤 `/qa`·`/design-review`의 실 브라우저 검증으로 분리한다.
+
+**갤러리 뷰 + 상세 placeholder 기술 (2026-10-22 추가)**
+- 무한스크롤: `useInfiniteQuery`(`initialPageParam: null`, `getNextPageParam: (last) => last.nextCursor`), `cursor`가 `null`이면 요청 쿼리스트링에 그 키 자체를 안 넣는다. sentinel에 네이티브 `IntersectionObserver`(`rootMargin: '600px'`, `hasNextPage && !isFetchingNextPage` 가드) — 별도 라이브러리 불필요.
+- 정렬(`sort=latest|likes`, PRD 기능8 전용, 갤러리에만 있음)이나 정규화된 필터 전체가 바뀌면 그리드 스크롤을 맨 위로 리셋.
+- 썸네일 그리드: `Photo`에 width/height 컬럼이 없어(DB에도 저장 안 함, 업로드 시 sharp로 리사이즈만 하고 치수는 안 남김 — `TODOS.md` 기록) 원본 비율을 알 수 없다. **고정 비율(4:3) 컨테이너 + `object-fit: contain`**(크롭 없이 레터박스)으로 이 갭을 회피 — 스켈레톤도 같은 고정 비율이라 레이아웃 시프트 자체가 없다.
+- **사진 상세는 이번 사이클엔 placeholder만**: 이미지(원본 비율 그대로, `<img style={{width:'100%',height:'auto'}}>` — 치수를 몰라 Next `<Image>`의 width/height·fill 대신 일반 `<img>`) + 카메라/렌즈/초점거리/조리개/셔터스피드/ISO만. 좋아요/신고/삭제/수정/소유자 전용 UI는 **다음 사이클**(§7.2 전체 내용 참고, 그때 클라이언트 컴포넌트로 승격). `params`는 Next 16 규칙대로 `Promise`로 받아 `await`. 404는 `notFound()`(→ 전역 `app/not-found.tsx`), 그 외 `!res.ok`는 `throw`(→ 전역 `app/error.tsx`, 한국어 문구 + 다시 시도). 둘 다 전역 파일로 신규 작성(이 화면만을 위한 전용 에러 UI 없음).
+- 서버 컴포넌트로 직접 `fetch`하므로 쿠키가 안 실린다 — `likedByMe`가 로그인 여부와 무관하게 항상 `false`로 보이는 영향은 placeholder 범위에선 무해(좋아요 버튼이 없음), 다음 사이클 TODO로 `TODOS.md`에 기록됨. (본인 비공개(`HIDDEN`) 사진의 404는 쿠키와 무관한 백엔드의 기존 설계 — `GET /photos/:id`는 owner 여부 체크 없이 `status !== 'ACTIVE'`면 항상 404, 본인 사진은 `GET /photos/me`로 별도 조회.)
+
+**알려진 갭 (범위 밖, `TODOS.md` 기록)**
+- `cameraName`/`lensName`은 업로드 시 EXIF 원문이 기본값이라(`photo-upload.service.ts`), 매핑 테이블 없이 사용자가 직접 고치지 않으면 필터 드롭다운에 "ILCE-7M4" 같은 원문이 그대로 보일 수 있음 — PRD 7-1절이 이미 Phase 2로 못박아둔 정규화 문제, 이번 사이클에서 고치지 않음.
+
 ### 7.2 `/photos/[id]` — 사진 상세
+
+**2026-10-22 추가**: 탐색 화면 플랜(§7.1)에서 이 라우트의 **placeholder만** 먼저 만든다(이미지+EXIF 읽기 전용, 서버 컴포넌트). 아래 전체 내용(좋아요/신고/소유자 기능)은 **다음 사이클**에서 클라이언트 컴포넌트로 승격하며 구현한다 — 지금은 라우트가 아예 없어 탐색 화면의 썸네일/핀 클릭이 404로 가는 걸 막는 최소 범위.
 
 **API**
 - `GET /photos/:id` — `likedByMe` 포함, 비로그인도 200
@@ -167,6 +210,7 @@ PRD 플로우 4-1(GPS 있음)/4-2(GPS 없음)을 하나의 마법사로 구현�
 - **401 처리**: TanStack Query의 `QueryClient`에 등록하는 `queryCache`/`mutationCache`의 전역 `onError` 콜백이 처리한다(2026-10-12 engineering review로 구체화 — `apiClient`를 감싸는 훅이 아니다). 예외: `['me']` 쿼리 자체의 401은 이 콜백을 타지 않고 쿼리 함수 내부에서 `null`로 변환(무한 루프/토스트 스팸 방지). `onError`는 `ApiError`가 아닌 raw 네트워크 에러도 받을 수 있다는 것, 401은 기본 재시도(3회) 대상에서 빼야 한다는 것을 구현 시 같이 처리한다.
 - **라우트 가드**: §4 참고 — `proxy.ts`(Next.js 16부터 `middleware.ts`가 deprecated, 2026-10-12 확인 — 가벼운 쿠키 존재 체크) + 페이지 레벨 `/auth/me` 재확인의 2단 구조.
 - **업로드 진행률**: `fetch` 기반 공용 `apiClient`는 업로드 진행률 이벤트를 지원하지 않는다 — 업로드 화면(§7.3)은 `apiClient`를 재사용하지 않고 `XMLHttpRequest` 기반 별도 함수를 쓴다(2026-10-12 engineering review로 결정).
+- **전역 에러 UI (2026-10-22 추가)**: `app/error.tsx`(Next.js Error Boundary, Client Component, 한국어 "문제가 생겼어요" 류 문구 + `reset()` 호출하는 다시 시도 버튼)와 `app/not-found.tsx`(`notFound()`가 트리거, "찾을 수 없습니다" 류 문구)를 전역 1개씩만 두고, 화면별 전용 에러 UI를 따로 만들지 않는다(§7.1 상세 placeholder가 첫 사용처).
 
 ## 9. 범위 밖 (이번 스펙에서 다루지 않음)
 
