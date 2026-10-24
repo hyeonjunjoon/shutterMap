@@ -23,39 +23,44 @@ function FilterFields() {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-camera`}>카메라</Label>
-        <select
-          id={`${idPrefix}-camera`}
-          disabled={equipmentLoading}
-          value={filters.cameraName ?? ''}
-          onChange={(e) => setFilters({ cameraName: e.target.value || null })}
-          className={selectClassName}
-        >
-          <option value="">전체</option>
-          {equipment?.cameraNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-lens`}>렌즈</Label>
-        <select
-          id={`${idPrefix}-lens`}
-          disabled={equipmentLoading}
-          value={filters.lensName ?? ''}
-          onChange={(e) => setFilters({ lensName: e.target.value || null })}
-          className={selectClassName}
-        >
-          <option value="">전체</option>
-          {equipment?.lensNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
+      {/* md:grid-cols-2: 카메라/렌즈를 한 줄에 — 전부 세로로 쌓으면 필터가
+          콘텐츠보다 화면을 먼저 지배한다(/design-review 발견). 모바일(드로어)은
+          실제 뷰포트가 좁아 이 브레이크포인트에서 자동으로 1열로 유지된다. */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-camera`}>카메라</Label>
+          <select
+            id={`${idPrefix}-camera`}
+            disabled={equipmentLoading}
+            value={filters.cameraName ?? ''}
+            onChange={(e) => setFilters({ cameraName: e.target.value || null })}
+            className={selectClassName}
+          >
+            <option value="">전체</option>
+            {equipment?.cameraNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-lens`}>렌즈</Label>
+          <select
+            id={`${idPrefix}-lens`}
+            disabled={equipmentLoading}
+            value={filters.lensName ?? ''}
+            onChange={(e) => setFilters({ lensName: e.target.value || null })}
+            className={selectClassName}
+          >
+            <option value="">전체</option>
+            {equipment?.lensNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
