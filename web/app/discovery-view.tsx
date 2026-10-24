@@ -4,6 +4,7 @@ import { useQueryState } from 'nuqs';
 import { viewParser, VIEW_OPTIONS, type DiscoveryView as DiscoveryViewType } from '@/lib/discovery-params';
 import { FilterBar } from './filter-bar';
 import { GalleryView } from './gallery-view';
+import { MapView } from './map-view';
 
 const TAB_LABEL: Record<DiscoveryViewType, string> = {
   gallery: '갤러리',
@@ -28,12 +29,13 @@ export function DiscoveryView() {
           </button>
         ))}
       </div>
-      <FilterBar />
-      {/* 지도 뷰는 플랜 B에서 구현한다 — 그때까지는 자리만 잡아둔다. */}
       {view === 'map' ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">지도 준비 중</p>
+        <MapView />
       ) : (
-        <GalleryView />
+        <>
+          <FilterBar />
+          <GalleryView />
+        </>
       )}
     </div>
   );
