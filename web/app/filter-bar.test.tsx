@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { withNuqsTestingAdapter } from 'nuqs/adapters/testing';
 import { FilterBar } from './filter-bar';
@@ -51,5 +52,24 @@ describe('FilterBar', () => {
     renderWithProviders('?minFocalLength=24');
     const input = (await screen.findByLabelText('초점거리 최소(mm)')) as HTMLInputElement;
     expect(input.value).toBe('24');
+  });
+
+  it('does not produce duplicate element ids when the mobile drawer is open (desktop + drawer copies of FilterFields coexist)', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ cameraNames: [], lensNames: [] }),
+    } as Response);
+    const user = userEvent.setup();
+    renderWithProviders();
+
+    await user.click(screen.getByRole('button', { name: '필터' }));
+    // 데스크톱 인라인 사본 + 드로어 사본, 두 FilterFields 인스턴스가 동시에
+    // DOM에 존재하는 상태 — 고정 id였다면 여기서 중복이 생긴다.
+    await screen.findAllByText('필터'); // 드로어 제목 렌더 대기
+
+    const ids = Array.from(document.querySelectorAll('[id]')).map((el) => el.id);
+    const uniqueIds = new Set(ids);
+    expect(uniqueIds.size).toBe(ids.length);
   });
 });
