@@ -22,7 +22,7 @@ export function DiscoveryView() {
             role="tab"
             aria-selected={view === option}
             onClick={() => setView(option)}
-            className="touch-manipulation rounded-lg px-3 py-2 text-sm font-medium aria-selected:bg-secondary aria-selected:text-secondary-foreground"
+            className="h-11 touch-manipulation rounded-lg px-3 text-sm font-medium aria-selected:bg-secondary aria-selected:text-secondary-foreground"
           >
             {TAB_LABEL[option]}
           </button>
