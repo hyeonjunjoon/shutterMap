@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { R2StorageService } from '../../photos/services/r2-storage.service';
 import { PhotoFilterService, SharedPhotoFilters } from './photo-filter.service';
 
 export interface MapFilters extends SharedPhotoFilters {
@@ -18,6 +19,7 @@ export interface PhotoPin {
   id: string;
   lat: number;
   lng: number;
+  thumbnailUrl: string;
 }
 
 const MAX_MAP_RESULTS = 2000;
@@ -38,6 +40,7 @@ export class DiscoveryMapService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly photoFilterService: PhotoFilterService,
+    private readonly r2: R2StorageService,
   ) {}
 
   async getPins(bounds: MapBounds, filters: MapFilters): Promise<PhotoPin[]> {
@@ -66,9 +69,9 @@ export class DiscoveryMapService {
     }
     const whereSql = Prisma.join(conditions, ' AND ');
 
-    const rows = await this.prisma.$queryRaw<{ id: string; lat: number; lng: number }[]>`
-      SELECT id, lat, lng FROM (
-        SELECT id, "createdAt",
+    const rows = await this.prisma.$queryRaw<{ id: string; lat: number; lng: number; thumbnailKey: string | null }[]>`
+      SELECT id, lat, lng, "thumbnailKey" FROM (
+        SELECT id, "createdAt", "thumbnailKey",
           CASE WHEN visibility = 'EXACT' THEN ST_Y(location::geometry) ELSE "fuzzyOffsetLat" END AS lat,
           CASE WHEN visibility = 'EXACT' THEN ST_X(location::geometry) ELSE "fuzzyOffsetLng" END AS lng
         FROM "Photo"
@@ -81,6 +84,11 @@ export class DiscoveryMapService {
       LIMIT ${MAX_MAP_RESULTS}
     `;
 
-    return rows.map((row) => ({ id: row.id, lat: row.lat, lng: row.lng }));
+    return rows.map((row) => ({
+      id: row.id,
+      lat: row.lat,
+      lng: row.lng,
+      thumbnailUrl: row.thumbnailKey ? this.r2.buildPublicUrl(row.thumbnailKey) : '',
+    }));
   }
 }
