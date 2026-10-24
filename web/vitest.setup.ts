@@ -7,3 +7,10 @@ import { cleanup } from '@testing-library/react';
 // 누적되는 걸 막는다(여러 render() 호출이 쌓이면 getByRole 등이 여러 개를
 // 찾아 테스트가 깨진다).
 afterEach(cleanup);
+
+// jsdom은 Element.scrollIntoView를 구현하지 않는다(실제 브라우저는 전부
+// 있음) — 이걸 호출하는 컴포넌트를 렌더링만 해도 "not a function"으로
+// 터진다. 테스트 환경 전용 갭이라 프로덕션 코드가 아니라 여기서 스텁한다.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

@@ -1,3 +1,5 @@
+import type { NormalizedDiscoveryFilters } from './discovery-params';
+
 // 쿼리 키를 한 곳에서 관리한다 — 다음 플랜(탐색/상세/업로드/마이페이지)이 각자
 // 다른 모양의 키를 발명하면 캐시 무효화가 어긋난다.
 //
@@ -8,4 +10,8 @@
 // 필터 객체는 키에 넣는 게 맞다 — 필터가 바뀌면 실제로 다른 쿼리니까.
 export const queryKeys = {
   me: ['me'] as const,
+  discovery: {
+    gallery: (filters: NormalizedDiscoveryFilters) => ['discovery', 'gallery', filters] as const,
+    equipment: ['discovery', 'equipment'] as const,
+  },
 };
