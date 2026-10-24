@@ -27,3 +27,11 @@ Critical 0건, Important 5건은 전부 수정·커밋됨. 아래는 fresh revie
 - [ ] `normalizeDiscoveryFilters`가 `sort`를 기본값이어도 항상 쿼리 키에 포함시킴 — §7.1은 "기본값과 같은 필드는 제외"라고 돼 있음. 캐시 키 자체는 일관되게 동작해 무해하지만 스펙 문구와 어긋남.
 - [ ] 필터 바의 초점거리 입력이 `parseAsInteger`라 소수(35.5)를 입력하면 URL엔 반올림된 36이 쓰이는데 그 순간의 fetch는 35.5로 나감(한 틱 동안 상태 불일치) — `web/app/filter-bar.tsx`. `step="1"` 또는 `Math.round` 적용 검토.
 - [ ] 백엔드가 `servingUrl`/`thumbnailUrl`을 빈 문자열로 줄 수 있는 경우(키 누락) `<img src="">`가 그대로 렌더링됨 — `web/app/photo-card.tsx`, `web/app/photos/[id]/photo-detail-card.tsx`.
+
+## 탐색 갤러리 web-design-guidelines 점검에서 미룬 항목 (2026-10-24)
+
+hover/lazy-loading 등 즉시 수정 가능한 건 바로 고침(discovery-view.tsx, photo-card.tsx). 아래는 보류.
+
+- [ ] 갤러리 무한스크롤 목록이 50개 넘게 쌓이면 가상화가 없음(`web/app/gallery-view.tsx`) — `virtua` 등 도입 검토. 이번 사이클은 요청량이 적어 체감 영향 작음.
+- [ ] 사진 상세 placeholder의 메인 이미지(`web/app/photos/[id]/photo-detail-card.tsx`)는 width/height도, aspect-ratio 컨테이너도 없음("원본 비율 그대로"가 의도된 설계) — 실제 레이아웃 시프트(CLS) 발생 가능. width/height 백필(이미 기록된 항목)이 끝나면 같이 해결됨.
+- [ ] 필터 바의 `<select>`가 `bg-transparent`라 Windows 다크모드에서 OS 기본(흰) 드롭다운 배경이 노출될 수 있음(`web/app/filter-bar.tsx`) — Windows 환경에서 직접 확인 필요.
