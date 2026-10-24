@@ -118,6 +118,50 @@ PRD 4장 플로우 기준. 지도/갤러리는 PRD가 "탭 전환 + 필터 상�
 - 마커 렌더링: 카카오 네이티브 `Marker`는 이미지 아이콘만 받아 CSS로 못 꾸민다. **개별 핀**은 흑백 SVG를 data URI로 만들어 `kakao.maps.MarkerImage`에 전달(정적 1개). **클러스터 배지**(개수가 매번 다름)는 `kakao.maps.CustomOverlay`(HTML div, 원형+흰 숫자)로 렌더링, 클릭 시 해당 좌표로 줌인. 클러스터 계산은 `supercluster({ radius: 60, maxZoom: <스파이크로 확정한 값> })`.
 - jsdom 한계: 지도 자체(DOM/Canvas 렌더링)는 유닛테스트로 검증 불가(`docs/solutions/integration-issues/jsdom-vs-browser-native-form-validation-gap.md`와 같은 종류의 간극) — `geo-convert.ts`/`discovery-params.ts`의 순수 함수만 유닛테스트하고, 실제 지도 렌더/핀 클릭/클러스터 확장은 구현 뒤 `/qa`·`/design-review`의 실 브라우저 검증으로 분리한다.
 
+**지도 탭 레이아웃 — 좌우 분할 (2026-10-24 추가)**
+
+참고 화면(브랜딩/색/로고 제외, 레이아웃 구조만)을 바탕으로 지도 탭만 갤러리 탭과 다른 2단 레이아웃을 쓴다. 갤러리 탭은 기존 전체 폭 그리드 그대로.
+
+*데스크톱/태블릿*
+- 헤더 아래 영역을 `100dvh - 헤더 높이`로 꽉 채움. 왼쪽 고정 폭 패널(대략 360~400px, 정확한 값은 구현 시 유동적으로 조정) + 오른쪽 남은 폭 전체가 지도.
+- 왼쪽 패널은 접기/펼치기 토글(모서리 화살표 버튼)을 가진다 — 접으면 지도가 남은 폭을 전부 차지.
+- 패널 안: 위쪽에 압축 필터 바(아래 참고), 아래쪽에 "이 지역 사진 · N장" 목록. **패널 내부만 스크롤**(바깥 페이지는 안 스크롤).
+- 지도 위 줌/내 위치 버튼은 지도 오른쪽 아래에 플로팅.
+
+*모바일*
+- 지도 전체 화면. 사진 목록은 아래에서 끌어올리는 **별도 Drawer**(필터 Drawer와는 다른 인스턴스), 필터는 "필터" 버튼 → 기존 `FilterBar`의 모바일 Drawer(플랜 A에서 이미 구현) 재사용.
+
+*`map.relayout()` 트리거 (카카오맵 공식 요구사항 — 컨테이너 크기가 바뀌면 호출 안 하면 지도가 빈 공간/깨진 타일로 렌더됨)*
+- 왼쪽 패널 접기/펼치기 토글
+- `window.resize`(디바운스 150ms 정도)
+- 모바일 목록 Drawer가 지도 레이아웃에 영향 주지 않는 이유: Drawer는 포털로 지도 위에 **오버레이**되는 것이지 지도 컨테이너의 실제 폭/높이를 바꾸지 않는다 — relayout 불필요.
+
+**필터 압축 (지도 탭의 데스크톱 전용 — 360~400px 폭 패널에 맞추기 위함. 모바일은 화면 자체가 좁아 압축 이점이 작으므로 새로 안 만들고, 지도/갤러리 두 탭 모두 기존 `FilterBar`의 모바일 Drawer를 그대로 재사용한다. 즉 압축 필터 컴포넌트는 데스크톱 지도 탭에서만 렌더되고, 나머지 모든 경우(데스크톱 갤러리, 모바일 지도, 모바일 갤러리)는 기존 `FilterBar` 그대로 — 둘 다 같은 `discoveryFilterParsers`/`useQueryStates` 상태를 공유하므로 URL은 항상 하나의 source of truth)**
+- 카메라·렌즈 선택을 한 줄에.
+- 초점거리·조리개 범위는 "상세 필터" 접기/펼치기 섹션 안.
+- 적용된 필터는 칩으로 표시, 칩마다 개별 삭제(해당 필드만 `null`로 `setFilters`).
+- **정렬 컨트롤은 지도 탭에 없음** — `/discovery/map` 자체가 이미 최신순(`createdAt DESC`)으로 응답하고, PRD 기능8(갤러리)에만 정렬이 있다. 정렬 드롭다운은 갤러리 탭 전용으로 유지, 목록 상단 오른쪽에 작게.
+
+**핀→목록 데이터 흐름 (2026-10-24, 백엔드 소폭 변경 전제)**
+- `GET /discovery/map` 응답에 `thumbnailUrl` 필드 추가(백엔드 작업, 이 플랜 B 앞에 별도 작은 태스크로 — `discovery-map.service.ts`의 원시 SQL SELECT에 `thumbnailKey` 추가 + `PhotoPin`에 필드 추가 + `R2StorageService.buildPublicUrl()`로 변환). 프라이버시 확인: 지도 응답은 이미 `visibility <> 'HIDDEN'`만 포함하므로(갤러리의 bbox 차단이 보호하려는 대상과 무관) 새 유출 없음. `buildPublicUrl`은 서명 없는 단순 문자열 조합이라 2000개를 만들어도 비용 무시 가능.
+- 요청 bbox(뷰포트 +20% 패딩)로 받은 핀 전체를 TanStack Query 캐시에 그대로 둔다 — **별도 state로 복사하지 않는다.**
+- `viewportBounds`(패딩 없는, 실제 화면 bbox) state를 `idle` 이벤트에서(URL 갱신과 같은 타이밍) 갱신.
+- 왼쪽 목록 = `useMemo(() => pins.filter(p => inBounds(p, viewportBounds)), [pins, viewportBounds])` — 매 렌더 재계산 아님, 의존성 바뀔 때만.
+- 목록 헤더 "이 지역 사진 · N장"의 N은 이 **뷰포트 필터링된 개수**. 상한 도달 안내("더 있을 수 있음, 확대해 보세요")는 **서버가 돌려준 전체 핀 개수(패딩 bbox 기준)가 2000**일 때만 — 둘은 다른 기준이라 섞지 않는다. 지도 위 배너("확대하면 더 많은 작례가 보여요")는 패널이 없는 모바일/패널 접힘 상태에서 계속 유효.
+
+**목록 점진 렌더**
+- 서버 무한스크롤이 아니라 **이미 메모리에 있는 배열의 클라이언트 사이드 windowing**이다. `visibleCount` state(초기 40), sentinel 교차 시 +40. `filteredPins.slice(0, visibleCount)`만 렌더 — 갤러리 무한스크롤(`useInfiniteQuery` 기반)과는 다른, 재사용 가능한 작은 훅(`useIncrementalReveal(items, pageSize)`)으로 분리.
+- `viewportBounds`가 바뀌면 `visibleCount`를 40으로 리셋(필터 바뀔 때 갤러리 스크롤 리셋과 같은 패턴 — 키 비교 가드 포함, 매 렌더 리셋 아님).
+- 목록 썸네일 `<img loading="lazy">`.
+
+**hover/클릭 ↔ 핀 연동**
+- `hoveredPinId`와 `selectedPinId`를 **분리된 state**로 둔다. 실제로 강조할 대상은 `hoveredPinId ?? selectedPinId`(하나로 합치지 않음 — hover가 일시적으로 다른 항목을 가리켜도 클릭 선택은 유지되어야 함).
+- 목록 항목 `onMouseEnter`/`onMouseLeave`가 `hoveredPinId`를 설정/해제. **`onFocus`/`onBlur`도 동일하게 처리**(키보드 탐색 사용자도 같은 강조를 받음).
+- 강조 대상이 **개별 마커로 보이는 핀**이면 그 마커에 기존 "선택 마커" 스타일(흰 채움+검정 테두리+1.3배, §5) 적용. 강조 대상이 **현재 줌 레벨에서 클러스터에 합쳐져 있는 핀**이면, 그 핀이 속한 클러스터의 `CustomOverlay` 배지를 강조 스타일로 표시한다 — 클러스터 계산 시 "leaf pinId → 소속 클러스터 id" 역인덱스(`leafToClusterId: Map<string, string|number>`, supercluster의 `getLeaves()`로 각 클러스터를 순회해 구성)를 같이 만들어둔다.
+- **성능**: 강조가 바뀔 때 마커 전체를 다시 그리지 않는다. `markersRef: Map<pinId, kakao.maps.Marker>`를 유지하고, 이전에 강조됐던 마커 1개를 기본 이미지로, 새로 강조되는 마커 1개만 강조 이미지로 `setImage()` 교체 — 최대 2000개 마커가 있어도 강조 전환 비용은 상수.
+- 핀 클릭 → `selectedPinId` 설정. 목록에서 그 항목이 아직 `visibleCount` 밖에 있으면(점진 렌더로 안 그려진 상태) **먼저 `visibleCount`를 해당 인덱스+1로 올리고**, DOM에 그 항목이 실제로 생긴 뒤(다음 커밋 이후 `useEffect`, 로그인/가입 화면에서 쓴 "지연 포커스"와 같은 패턴) `scrollIntoView`. 상세 페이지 이동은 핀 클릭이 아니라 **목록 카드 클릭**(기존 `PhotoCard` 링크)에서 일어난다 — 지도를 훑어보는 흐름이 끊기지 않게.
+- **모바일**: 핀 탭 → `selectedPinId` 설정 + 목록 Drawer를 완전히 펼치지 않고 **peek 스냅 포인트**로 올려서 해당 사진 카드가 보이게 한다(shadcn/Base UI Drawer가 `snapPoints`/`activeSnapPoint`/`onSnapPointChange`를 지원 — 기존 설치된 컴포넌트 그대로 재사용, 새 의존성 없음). 목록은 같은 `filteredPins` 배열을 쓰고 해당 항목으로 스크롤만 다르게 — 탭 전용 "미니 카드" 컴포넌트를 새로 안 만든다.
+
 **갤러리 뷰 + 상세 placeholder 기술 (2026-10-22 추가)**
 - 무한스크롤: `useInfiniteQuery`(`initialPageParam: null`, `getNextPageParam: (last) => last.nextCursor`), `cursor`가 `null`이면 요청 쿼리스트링에 그 키 자체를 안 넣는다. sentinel에 네이티브 `IntersectionObserver`(`rootMargin: '600px'`, `hasNextPage && !isFetchingNextPage` 가드) — 별도 라이브러리 불필요.
 - 정렬(`sort=latest|likes`, PRD 기능8 전용, 갤러리에만 있음)이나 정규화된 필터 전체가 바뀌면 그리드 스크롤을 맨 위로 리셋.
