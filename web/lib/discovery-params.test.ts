@@ -3,6 +3,8 @@ import {
   discoveryFilterParsers,
   viewParser,
   normalizeDiscoveryFilters,
+  monthParser,
+  normalizeMapFilters,
 } from './discovery-params';
 
 describe('discoveryFilterParsers', () => {
@@ -67,5 +69,47 @@ describe('normalizeDiscoveryFilters', () => {
     const result = normalizeDiscoveryFilters({ ...base, cameraName: 'ILCE-7M4', sort: 'likes' });
     expect(result.cameraName).toBe('ILCE-7M4');
     expect(result.sort).toBe('likes');
+  });
+});
+
+describe('monthParser', () => {
+  it('parses a valid month', () => {
+    expect(monthParser.parse('7')).toBe(7);
+  });
+
+  it('returns null for a non-numeric value', () => {
+    expect(monthParser.parse('july')).toBeNull();
+  });
+});
+
+describe('normalizeMapFilters', () => {
+  const base = {
+    cameraName: null,
+    lensName: null,
+    minFocalLength: null,
+    maxFocalLength: null,
+    minAperture: null,
+    maxAperture: null,
+    sort: 'latest' as const,
+    month: null,
+  };
+
+  it('keeps a valid month (1~12)', () => {
+    expect(normalizeMapFilters({ ...base, month: 7 }).month).toBe(7);
+  });
+
+  it('drops an out-of-range month instead of erroring', () => {
+    expect(normalizeMapFilters({ ...base, month: 13 }).month).toBeUndefined();
+    expect(normalizeMapFilters({ ...base, month: 0 }).month).toBeUndefined();
+  });
+
+  it('still applies the shared filter normalization (e.g. invalid focal range)', () => {
+    const result = normalizeMapFilters({ ...base, minFocalLength: 100, maxFocalLength: 50 });
+    expect(result.minFocalLength).toBeUndefined();
+    expect(result.maxFocalLength).toBeUndefined();
+  });
+
+  it('omits month entirely when not set', () => {
+    expect(normalizeMapFilters(base).month).toBeUndefined();
   });
 });
