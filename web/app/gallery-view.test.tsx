@@ -32,8 +32,10 @@ function renderWithProviders(searchParams = '') {
 }
 
 function mockGalleryFetch(impl: (url: string) => { items: unknown[]; nextCursor: string | null }) {
-  global.fetch = vi.fn((url: string) => {
-    const body = impl(url);
+  // 실제 fetch는 RequestInfo | URL을 받는다 — 테스트에서는 전부 문자열
+  // URL만 쓰므로 String()으로 좁혀서 impl에 넘긴다.
+  global.fetch = vi.fn((input: RequestInfo | URL) => {
+    const body = impl(String(input));
     return Promise.resolve({ ok: true, status: 200, text: async () => JSON.stringify(body) } as Response);
   });
 }
@@ -59,13 +61,15 @@ describe('GalleryView', () => {
   });
 
   it('does not issue a second fetchNextPage call while one is already in flight (rapid double intersection)', async () => {
-    let page2Resolve: (() => void) | null = null;
+    // let + 클로저 안에서의 재할당은 tsc가 바깥 스코프에서의 타입을 never로
+    // 좁혀버리는 경우가 있어(이 스코프 체인에서 실제로 발생) 가변 객체로 바꾼다.
+    const page2: { resolve: (() => void) | null } = { resolve: null };
     let callCount = 0;
-    global.fetch = vi.fn((url: string) => {
+    global.fetch = vi.fn((input: RequestInfo | URL) => {
       callCount++;
-      if (String(url).includes('cursor=')) {
-        return new Promise((resolve) => {
-          page2Resolve = () =>
+      if (String(input).includes('cursor=')) {
+        return new Promise<Response>((resolve) => {
+          page2.resolve = () =>
             resolve({ ok: true, status: 200, text: async () => JSON.stringify({ items: [], nextCursor: null }) } as Response);
         });
       }
@@ -92,7 +96,7 @@ describe('GalleryView', () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(callCount).toBe(2); // 3번째 호출이 나가면 안 됨 — isFetchingNextPage 가드
 
-    page2Resolve?.();
+    page2.resolve?.();
   });
 
   it('shows photos matching the active filter only, not a mix with a previous filter', async () => {
