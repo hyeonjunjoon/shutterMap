@@ -65,12 +65,13 @@ export function MapPinList({ pins, hoveredPinId, selectedPinId, onHoverPin, ref 
                 else itemRefs.current.delete(pin.id);
               }}
               href={`/photos/${pin.id}`}
+              aria-label="사진 보기"
               onMouseEnter={() => onHoverPin(pin.id)}
               onMouseLeave={() => onHoverPin(null)}
               onFocus={() => onHoverPin(pin.id)}
               onBlur={() => onHoverPin(null)}
               data-selected={isSelected}
-              className="block touch-manipulation overflow-hidden rounded-[var(--radius-photo)] border border-border data-[selected=true]:border-foreground"
+              className="block touch-manipulation overflow-hidden rounded-[var(--radius-photo)] border border-border transition-opacity hover:opacity-80 data-[selected=true]:border-foreground"
             >
               <div className="aspect-[4/3] bg-muted">
                 <img src={pin.thumbnailUrl} alt="" loading="lazy" className="h-full w-full object-contain" />

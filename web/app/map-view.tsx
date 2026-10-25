@@ -147,7 +147,7 @@ export function MapView() {
         <button
           type="button"
           onClick={togglePanel}
-          className="absolute left-2 top-2 z-10 hidden h-11 touch-manipulation rounded-lg border border-border bg-background px-3 text-sm md:block"
+          className="absolute left-2 top-2 z-10 hidden h-11 touch-manipulation rounded-lg border border-border bg-background px-3 text-sm hover:bg-muted md:block"
         >
           {panelCollapsed ? '패널 펼치기' : '패널 접기'}
         </button>

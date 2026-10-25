@@ -15,9 +15,10 @@ declare global {
 // 클러스터 배지는 클릭하면 확대되는 버튼이다 — h-8/h-9(32/36px)였던 기존 크기는
 // 44px 터치 타겟 기준(web-design-guidelines)에 못 미친다(/design-review에서
 // 확인). 핀 강조와 같은 패턴으로 기본 44px, 강조 시 한 단계 크게.
-const CLUSTER_BADGE_DEFAULT_CLASS = 'flex h-11 w-11 items-center justify-center rounded-full bg-foreground text-xs font-medium text-background';
+const CLUSTER_BADGE_DEFAULT_CLASS =
+  'flex h-11 w-11 touch-manipulation cursor-pointer items-center justify-center rounded-full border-0 bg-foreground text-xs font-medium text-background';
 const CLUSTER_BADGE_HIGHLIGHTED_CLASS =
-  'flex h-12 w-12 items-center justify-center rounded-full bg-background text-xs font-medium text-foreground ring-2 ring-foreground';
+  'flex h-12 w-12 touch-manipulation cursor-pointer items-center justify-center rounded-full border-0 bg-background text-xs font-medium text-foreground ring-2 ring-foreground';
 
 export interface MapCanvasHandle {
   relayout: () => void;
@@ -49,7 +50,7 @@ export function MapCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef(new Map<string, any>());
-  const overlaysRef = useRef(new Map<number, { overlay: any; content: HTMLDivElement }>());
+  const overlaysRef = useRef(new Map<number, { overlay: any; content: HTMLButtonElement }>());
   const leafToClusterIdRef = useRef(new Map<string, number>());
   const prevHighlightRef = useRef<string | null>(null);
 
@@ -99,8 +100,13 @@ export function MapCanvas({
         markersRef.current.set(marker.id, kakaoMarker);
       } else {
         const isHighlighted = highlightId != null && leafToClusterId.get(highlightId) === marker.id;
-        const content = document.createElement('div');
+        // div가 아니라 button — 클릭 핸들러가 붙은 요소는 키보드 포커스/Enter·Space
+        // 활성화가 네이티브로 되는 실제 버튼이어야 한다(web-design-guidelines).
+        // 숫자만 읽히면 "8"처럼 맥락이 없어 aria-label로 보강한다.
+        const content = document.createElement('button');
+        content.type = 'button';
         content.textContent = String(marker.count);
+        content.setAttribute('aria-label', `사진 ${marker.count}장 — 확대해서 보기`);
         content.className = isHighlighted ? CLUSTER_BADGE_HIGHLIGHTED_CLASS : CLUSTER_BADGE_DEFAULT_CLASS;
         content.addEventListener('click', () => {
           map.setLevel(zoomToKakaoLevel(marker.expansionZoom), {
