@@ -136,6 +136,20 @@ describe('MapCanvas', () => {
     expect(stub.lastMap.current?.relayout).toHaveBeenCalledTimes(1);
   });
 
+  // Regression: QA-003 — 실 브라우저(/qa)에서 확인: 카카오맵이 생성 직후
+  // 'idle' 이벤트를 전혀 안 쏘는 경우가 있었다(맵 자체의 getBounds/getCenter는
+  // 그 시점부터 이미 유효한데도). 그 결과 onIdle이 한 번도 안 불려서
+  // viewportBounds가 null로 남고 첫 조회 자체가 영영 안 일어났다. idle 이벤트를
+  // 기다리기만 하지 않고, 다음 프레임에 같은 보고 로직을 직접 한 번 호출해야 한다.
+  // Found by /qa on 2026-10-25
+  it('reports idle state on the next frame after map creation even if the kakao idle event never fires', async () => {
+    const { props } = setup();
+    // stub.lastMap.current.__fireIdle()을 한 번도 안 부른다 — idle 이벤트가
+    // 아예 안 온 경우를 흉내낸다.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(props.onIdle).toHaveBeenCalledTimes(1);
+  });
+
   it('swaps only the previous and new marker image when the highlight changes, without recreating all markers', () => {
     const { rerender, props } = setup({ hoveredPinId: null });
     const markerCountAfterMount = stub.markers.length;

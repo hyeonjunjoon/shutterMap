@@ -124,7 +124,8 @@ export function MapCanvas({
       level: zoomToKakaoLevel(zoom),
     });
     mapRef.current = map;
-    window.kakao.maps.event.addListener(map, 'idle', () => {
+
+    const reportIdleState = () => {
       const bounds = map.getBounds();
       const sw = bounds.getSouthWest();
       const ne = bounds.getNorthEast();
@@ -135,8 +136,16 @@ export function MapCanvas({
         kakaoLevelToZoom(map.getLevel()),
       );
       renderMarkers();
-    });
+    };
+
+    window.kakao.maps.event.addListener(map, 'idle', reportIdleState);
     renderMarkers();
+    // 카카오맵이 생성 직후 'idle'을 안정적으로 쏘지 않는 경우가 실 브라우저
+    // (/qa)에서 확인됐다 — 지도의 getBounds()/getCenter()/getLevel() 자체는
+    // 생성 시점부터 이미 유효한 값을 돌려주므로, idle 이벤트를 기다리지 않고
+    // 다음 프레임에 같은 로직을 한 번 직접 호출해서 첫 조회가 항상 일어나게
+    // 한다. 이후의 실제 패닝/줌은 그대로 idle 이벤트로 처리된다.
+    requestAnimationFrame(reportIdleState);
   }, [center, zoom, renderMarkers]);
 
   // 재방문 시(스크립트 재다운로드 없이) window.kakao가 이미 있으면 마운트

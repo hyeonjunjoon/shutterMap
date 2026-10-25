@@ -78,6 +78,27 @@ describe('MapView', () => {
     expect(await screen.findByText('이 지역 사진 · 2장')).toBeDefined();
   });
 
+  // Regression: QA-001 — 카카오맵이 초기화 직후 degenerate(minLat===maxLat 등)
+  // bounds로 idle을 한 번 먼저 쏘는 걸 실 브라우저(/qa)에서 확인함 — 이 값을
+  // 그대로 fetchMapPins에 보내면 백엔드가 400("유효하지 않은 지도 범위입니다")을
+  // 돌려준다. 두 번째(실제) idle이 이어서 정상 bounds로 오긴 하지만, 그 사이에
+  // 불필요한 400 요청과 그에 따른 TanStack Query 에러 상태가 한 번 생긴다.
+  // Found by /qa on 2026-10-25
+  it('ignores a degenerate idle (zero-size bounds) instead of fetching with it', async () => {
+    mockPins([]);
+    renderWithProviders();
+    await screen.findByTestId('map-canvas-stub');
+
+    capturedOnIdle?.({ minLat: 38.0, maxLat: 38.0, minLng: 126.4, maxLng: 126.4 }, { lat: 38.0, lng: 126.4 }, 10);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).includes('/discovery/map'))).toHaveLength(0);
+
+    capturedOnIdle?.({ minLat: 37.4, maxLat: 37.6, minLng: 127.4, maxLng: 127.6 }, { lat: 37.5, lng: 127.5 }, 10);
+    await waitFor(() =>
+      expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).includes('/discovery/map')).length).toBe(1),
+    );
+  });
+
   it('shows the 2000-cap notice only when the raw response length is exactly 2000, independent of the viewport count', async () => {
     const pins = Array.from({ length: 2000 }, (_, i) => ({ id: `p${i}`, lat: 37.5, lng: 127.5, thumbnailUrl: 'u' }));
     mockPins(pins);

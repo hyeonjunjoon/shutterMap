@@ -61,6 +61,12 @@ export function MapView() {
   const mapCanvasRef = useRef<MapCanvasHandle>(null);
 
   function handleIdle(bounds: LatLngBounds, newCenter: { lat: number; lng: number }, newZoom: number) {
+    // 카카오맵이 초기화 직후 degenerate(한 점짜리) bounds로 idle을 한 번 먼저
+    // 쏘는 경우가 있다(/qa에서 실 브라우저로 확인) — 그대로 보내면 백엔드가
+    // 400을 돌려준다. 백엔드의 유효성 조건과 대칭으로 무시한다.
+    if (bounds.minLat >= bounds.maxLat || bounds.minLng >= bounds.maxLng) {
+      return;
+    }
     setViewportBounds(bounds);
 
     const roundedLat = Math.round(newCenter.lat * 1e5) / 1e5;
@@ -101,11 +107,21 @@ export function MapView() {
   const isCapped = pins.length === MAX_MAP_RESULTS;
 
   return (
-    <div
-      className="grid h-[calc(100dvh-4rem)] grid-cols-1 md:grid-cols-[minmax(0,360px)_1fr] md:data-[collapsed=true]:grid-cols-[0_1fr]"
-      data-collapsed={panelCollapsed}
-    >
-      <div className={`hidden overflow-y-auto border-r border-border p-4 md:block ${panelCollapsed ? 'md:hidden' : ''}`}>
+    <div className="grid h-[calc(100dvh-4rem)] grid-cols-1 md:grid-cols-[minmax(0,360px)_1fr]">
+      {/* 접힘 상태는 grid-template-columns 자체를 바꾸는 대신(Tailwind의
+          data-[attr=value]: 반응형 조합이 실 브라우저에서 두 칼럼 다 0폭으로
+          깨지는 걸 /qa에서 확인함 — md:block/md:hidden 두 유틸리티 클래스가
+          같은 breakpoint에서 소스 순서가 아니라 생성된 스타일시트 순서로
+          캐스케이드되는 Tailwind 특유의 함정과 겹쳐서 grid 트랙 자체가 깨졌다)
+          이 칸 자체를 폭 0으로 줄인다 — 트랙은 minmax(0,360px)라 내용에 맞춰
+          0까지 줄어들 수 있다. */}
+      <div
+        className={
+          panelCollapsed
+            ? 'hidden md:block md:w-0 md:overflow-hidden'
+            : 'hidden overflow-y-auto border-r border-border p-4 md:block'
+        }
+      >
         <MapFilterBar />
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm font-medium">
@@ -121,8 +137,11 @@ export function MapView() {
       <div className="relative">
         {/* 모바일: 지도 탭도 압축 필터(MapFilterBar)가 아니라 기존 FilterBar를
             그대로 쓴다(Global Constraint) — 데스크톱 피스는 바깥 md:hidden으로
-            가려서 MapFilterBar와 중복되지 않게 한다. */}
-        <div className="absolute left-2 top-2 z-10 md:hidden">
+            가려서 MapFilterBar와 중복되지 않게 한다. FilterBar의 "필터" 버튼은
+            outline variant(거의 투명)라 원래 페이지의 불투명 배경 위에서만
+            또렷하다 — 지도 위에 그대로 띄우면 사실상 안 보인다(/qa에서 실
+            브라우저로 확인). 불투명 배경을 가진 래퍼로 감싼다. */}
+        <div className="absolute left-2 top-2 z-10 rounded-lg bg-background p-1 shadow-md md:hidden">
           <FilterBar />
         </div>
         <button
