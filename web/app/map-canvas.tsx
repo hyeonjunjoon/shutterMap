@@ -12,6 +12,13 @@ declare global {
   }
 }
 
+// 클러스터 배지는 클릭하면 확대되는 버튼이다 — h-8/h-9(32/36px)였던 기존 크기는
+// 44px 터치 타겟 기준(web-design-guidelines)에 못 미친다(/design-review에서
+// 확인). 핀 강조와 같은 패턴으로 기본 44px, 강조 시 한 단계 크게.
+const CLUSTER_BADGE_DEFAULT_CLASS = 'flex h-11 w-11 items-center justify-center rounded-full bg-foreground text-xs font-medium text-background';
+const CLUSTER_BADGE_HIGHLIGHTED_CLASS =
+  'flex h-12 w-12 items-center justify-center rounded-full bg-background text-xs font-medium text-foreground ring-2 ring-foreground';
+
 export interface MapCanvasHandle {
   relayout: () => void;
 }
@@ -94,9 +101,7 @@ export function MapCanvas({
         const isHighlighted = highlightId != null && leafToClusterId.get(highlightId) === marker.id;
         const content = document.createElement('div');
         content.textContent = String(marker.count);
-        content.className = isHighlighted
-          ? 'flex h-9 w-9 items-center justify-center rounded-full bg-background text-xs font-medium text-foreground ring-2 ring-foreground'
-          : 'flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-xs font-medium text-background';
+        content.className = isHighlighted ? CLUSTER_BADGE_HIGHLIGHTED_CLASS : CLUSTER_BADGE_DEFAULT_CLASS;
         content.addEventListener('click', () => {
           map.setLevel(zoomToKakaoLevel(marker.expansionZoom), {
             anchor: new window.kakao.maps.LatLng(marker.lat, marker.lng),
@@ -177,7 +182,7 @@ export function MapCanvas({
       const prevClusterId = leafToClusterIdRef.current.get(prevId);
       if (prevClusterId != null) {
         const entry = overlaysRef.current.get(prevClusterId);
-        if (entry) entry.content.className = 'flex h-8 w-8 items-center justify-center rounded-full bg-foreground text-xs font-medium text-background';
+        if (entry) entry.content.className = CLUSTER_BADGE_DEFAULT_CLASS;
       }
     }
     if (highlightId) {
@@ -190,7 +195,7 @@ export function MapCanvas({
         const clusterId = leafToClusterIdRef.current.get(highlightId);
         if (clusterId != null) {
           const entry = overlaysRef.current.get(clusterId);
-          if (entry) entry.content.className = 'flex h-9 w-9 items-center justify-center rounded-full bg-background text-xs font-medium text-foreground ring-2 ring-foreground';
+          if (entry) entry.content.className = CLUSTER_BADGE_HIGHLIGHTED_CLASS;
         }
       }
     }
