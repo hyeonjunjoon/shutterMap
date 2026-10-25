@@ -3,6 +3,7 @@ import { render } from '@testing-library/react';
 import { createRef } from 'react';
 import { MapCanvas, type MapCanvasHandle } from './map-canvas';
 import type { MapPin } from '@/lib/map-clusters';
+import { PIN_ICON_SELECTED } from '@/lib/pin-icons';
 
 // 카카오맵 네임스페이스 스텁 — 실제 렌더링은 안 하고, 호출 횟수/인자만 기록한다.
 function stubKakao() {
@@ -144,5 +145,18 @@ describe('MapCanvas', () => {
     expect(stub.markers.length).toBe(markerCountAfterMount);
     // 강조된(혹은 강조 해제된) 마커의 setImage가 호출됐어야 한다.
     expect(stub.markers.some((m) => m.setImage.mock.calls.length > 0)).toBe(true);
+  });
+
+  it('keeps the current highlight after an idle-triggered full rebuild (panning/zooming after selecting a pin)', () => {
+    const { rerender, props } = setup({ selectedPinId: null });
+    rerender(<MapCanvas {...props} ref={createRef()} selectedPinId="a" />);
+
+    // idle(패닝/줌)이 렌더러를 다시 호출해서 모든 마커를 새로 만든다 — 이때도
+    // 선택된 핀은 여전히 강조된 이미지로 생성돼야 한다.
+    const markerImageCallsBeforeIdle = (window as any).kakao.maps.MarkerImage.mock.calls.length;
+    stub.lastMap.current?.__fireIdle();
+    const callsAfterIdle = (window as any).kakao.maps.MarkerImage.mock.calls.slice(markerImageCallsBeforeIdle);
+
+    expect(callsAfterIdle.some((call: unknown[]) => call[0] === PIN_ICON_SELECTED)).toBe(true);
   });
 });

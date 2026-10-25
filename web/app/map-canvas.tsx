@@ -46,8 +46,13 @@ export function MapCanvas({
   const leafToClusterIdRef = useRef(new Map<string, number>());
   const prevHighlightRef = useRef<string | null>(null);
 
-  const propsRef = useRef({ pins, onIdle, onPinClick, onPinHover });
-  propsRef.current = { pins, onIdle, onPinClick, onPinHover };
+  // hoveredPinId/selectedPinId도 ref로 읽는다 — idle 리스너는 initMap 시점에
+  // 딱 한 번만 등록되므로(아래 mount effect), renderMarkers가 이 값들을 클로저로
+  // 캡처하면 그 등록 시점의 값에 영원히 묶여서, 핀을 고른 뒤 패닝/줌해도(idle이
+  // 다시 불러서 전체 재생성) 강조가 조용히 사라진다. ref로 읽으면 renderMarkers
+  // 자체가 안정적인(재생성 안 되는) 함수가 되면서 이 문제가 같이 풀린다.
+  const propsRef = useRef({ pins, onIdle, onPinClick, onPinHover, hoveredPinId, selectedPinId });
+  propsRef.current = { pins, onIdle, onPinClick, onPinHover, hoveredPinId, selectedPinId };
 
   const renderMarkers = useCallback(() => {
     const map = mapRef.current;
@@ -65,7 +70,7 @@ export function MapCanvas({
     overlaysRef.current.forEach(({ overlay }) => overlay.setMap(null));
     overlaysRef.current.clear();
 
-    const highlightId = hoveredPinId ?? selectedPinId;
+    const highlightId = propsRef.current.hoveredPinId ?? propsRef.current.selectedPinId;
 
     for (const marker of markers as MapMarker[]) {
       if (marker.type === 'pin') {
@@ -107,7 +112,10 @@ export function MapCanvas({
     }
 
     prevHighlightRef.current = highlightId;
-  }, [hoveredPinId, selectedPinId]);
+    // 의도적으로 deps 없음(안정적인 함수) — 강조값은 propsRef로 읽는다. 이래야
+    // initMap에서 한 번만 등록되는 idle 리스너가 항상 "최신" renderMarkers를
+    // 참조하게 된다(위 코멘트 참고).
+  }, []);
 
   const initMap = useCallback(() => {
     if (!containerRef.current || !window.kakao?.maps || mapRef.current) return;

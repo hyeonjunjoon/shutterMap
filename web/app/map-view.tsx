@@ -13,6 +13,7 @@ import { fetchMapPins } from '@/lib/discovery-map-api';
 import { queryKeys } from '@/lib/query-keys';
 import { padBounds, isWithinBounds, type LatLngBounds } from '@/lib/geo-convert';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
+import { FilterBar } from './filter-bar';
 import { MapFilterBar } from './map-filter-bar';
 import { MapPinList, type MapPinListHandle } from './map-pin-list';
 import { MapCanvas, type MapCanvasHandle } from './map-canvas';
@@ -42,7 +43,9 @@ export function MapView() {
   const requestBounds = viewportBounds ? padBounds(viewportBounds, REQUEST_PADDING_RATIO) : null;
 
   const { data: pins = [] } = useQuery({
-    queryKey: requestBounds ? queryKeys.discovery.map(requestBounds, sharedFilters) : ['discovery', 'map', 'pending'],
+    // filters(month 포함)를 키에 넣는다 — sharedFilters만 넣으면 month가
+    // 바뀌어도 쿼리 키가 그대로라 새로 조회하지 않는다.
+    queryKey: requestBounds ? queryKeys.discovery.map(requestBounds, filters) : ['discovery', 'map', 'pending'],
     queryFn: () => fetchMapPins(requestBounds!, sharedFilters, month),
     enabled: requestBounds !== null,
     placeholderData: keepPreviousData,
@@ -116,6 +119,12 @@ export function MapView() {
       </div>
 
       <div className="relative">
+        {/* 모바일: 지도 탭도 압축 필터(MapFilterBar)가 아니라 기존 FilterBar를
+            그대로 쓴다(Global Constraint) — 데스크톱 피스는 바깥 md:hidden으로
+            가려서 MapFilterBar와 중복되지 않게 한다. */}
+        <div className="absolute left-2 top-2 z-10 md:hidden">
+          <FilterBar />
+        </div>
         <button
           type="button"
           onClick={togglePanel}
@@ -123,6 +132,16 @@ export function MapView() {
         >
           {panelCollapsed ? '패널 펼치기' : '패널 접기'}
         </button>
+        {/* 패널 안의 "더 있을 수 있음" 안내는 모바일/패널 접힘 상태에서는 안
+            보인다 — 지도 위에도 같은 안내를 둔다(모바일은 항상, 데스크톱은
+            패널이 접혔을 때만 — 펼쳐져 있을 때는 패널 안내와 중복이라 숨긴다). */}
+        {isCapped && (
+          <p
+            className={`absolute right-2 top-2 z-10 rounded-lg bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow ${panelCollapsed ? '' : 'md:hidden'}`}
+          >
+            확대하면 더 많은 사진을 볼 수 있어요
+          </p>
+        )}
         <MapCanvas
           ref={mapCanvasRef}
           pins={pins}

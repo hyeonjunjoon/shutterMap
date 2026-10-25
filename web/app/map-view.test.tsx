@@ -30,12 +30,12 @@ beforeEach(() => {
   global.IntersectionObserver = MockIntersectionObserver;
 });
 
-function renderWithProviders(searchParams = '') {
+function renderWithProviders(searchParams = '', onUrlUpdate?: (...args: unknown[]) => void) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(<MapView />, {
     wrapper: ({ children }) => (
       <QueryClientProvider client={queryClient}>
-        {withNuqsTestingAdapter({ searchParams, hasMemory: true })({ children })}
+        {withNuqsTestingAdapter({ searchParams, hasMemory: true, onUrlUpdate })({ children })}
       </QueryClientProvider>
     ),
   });
@@ -90,6 +90,16 @@ describe('MapView', () => {
     expect(screen.getByText(/더 있을 수 있음/)).toBeDefined();
   });
 
+  it('also shows an on-map cap notice (visible even on mobile / when the desktop panel is collapsed, unlike the panel-only text)', async () => {
+    const pins = Array.from({ length: 2000 }, (_, i) => ({ id: `p${i}`, lat: 37.5, lng: 127.5, thumbnailUrl: 'u' }));
+    mockPins(pins);
+    renderWithProviders();
+    await screen.findByTestId('map-canvas-stub');
+    capturedOnIdle?.({ minLat: 37.4, maxLat: 37.6, minLng: 127.4, maxLng: 127.6 }, { lat: 37.5, lng: 127.5 }, 10);
+
+    expect(await screen.findByText('확대하면 더 많은 사진을 볼 수 있어요')).toBeDefined();
+  });
+
   it('does not show the cap notice when the response is under 2000', async () => {
     mockPins([{ id: 'a', lat: 37.5, lng: 127.5, thumbnailUrl: 'u' }]);
     renderWithProviders();
@@ -99,16 +109,55 @@ describe('MapView', () => {
     expect(screen.queryByText(/더 있을 수 있음/)).toBeNull();
   });
 
-  it('skips the URL write when idle fires again with the same rounded center/zoom', async () => {
+  it('renders the mobile FilterBar (카메라/렌즈/정렬 등) on the map tab, not just the desktop-only compressed MapFilterBar', async () => {
     mockPins([]);
     renderWithProviders();
     await screen.findByTestId('map-canvas-stub');
 
+    // FilterBar의 모바일 Drawer 트리거 버튼("필터")이 있어야 한다 — 지도 탭
+    // Global Constraint("모바일은 기존 FilterBar 그대로")를 지키는지 확인.
+    expect(await screen.findByRole('button', { name: '필터' })).toBeDefined();
+  });
+
+  it('refetches when the month filter changes (month must be part of the query key, not just the queryFn arg)', async () => {
+    mockPins([]);
+    const user = (await import('@testing-library/user-event')).default.setup();
+    renderWithProviders();
+    await screen.findByTestId('map-canvas-stub');
+    capturedOnIdle?.({ minLat: 37.4, maxLat: 37.6, minLng: 127.4, maxLng: 127.6 }, { lat: 37.5, lng: 127.5 }, 10);
+
+    function mapCallCount() {
+      return (global.fetch as ReturnType<typeof vi.fn>).mock.calls.filter((c) => String(c[0]).includes('/discovery/map')).length;
+    }
+    await waitFor(() => expect(mapCallCount()).toBeGreaterThan(0));
+    const callsBefore = mapCallCount();
+
+    const monthSelect = await screen.findByLabelText('촬영월');
+    await user.selectOptions(monthSelect, '3');
+
+    await waitFor(() => expect(mapCallCount()).toBeGreaterThan(callsBefore));
+  });
+
+  it('skips the URL write when idle fires again with the same rounded center/zoom', async () => {
+    // 같은 값을 다시 쓰기만 해도 window.location.search 문자열 자체는 똑같이
+    // 나온다 — 스킵 로직이 없어도 통과하는 약한 검증이었다. withNuqsTestingAdapter는
+    // window.history를 안 건드리고 메모리로만 상태를 관리하므로(실제 브라우저
+    // 히스토리를 흉내 안 냄), history.replaceState를 스파이해도 0번만 잡힌다 —
+    // 대신 어댑터가 제공하는 onUrlUpdate 훅으로 실제 쓰기 횟수를 센다.
+    mockPins([]);
+    const onUrlUpdate = vi.fn();
+    renderWithProviders('', onUrlUpdate);
+    await screen.findByTestId('map-canvas-stub');
+
     capturedOnIdle?.({ minLat: 37.4, maxLat: 37.6, minLng: 127.4, maxLng: 127.6 }, { lat: 37.500001, lng: 127.500001 }, 10.4);
-    const urlAfterFirst = window.location.search;
+    // nuqs는 URL 쓰기를 동기적으로 하지 않고 다음 틱에 플러시한다 — 바로
+    // 확인하면 아직 0건이다.
+    await waitFor(() => expect(onUrlUpdate).toHaveBeenCalled());
+    const callsAfterFirst = onUrlUpdate.mock.calls.length;
 
     capturedOnIdle?.({ minLat: 37.4, maxLat: 37.6, minLng: 127.4, maxLng: 127.6 }, { lat: 37.5, lng: 127.5 }, 10.49); // 반올림하면 동일값
-    expect(window.location.search).toBe(urlAfterFirst);
+    await new Promise((resolve) => setTimeout(resolve, 50)); // 추가 쓰기가 없다는 걸 확인하려면 플러시를 기다려야 한다
+    expect(onUrlUpdate.mock.calls.length).toBe(callsAfterFirst);
   });
 
   it('calls relayout on the desktop panel collapse toggle', async () => {
@@ -127,13 +176,19 @@ describe('MapView', () => {
 
   it("opens the mobile peek drawer with the tapped pin's card when a map pin is clicked", async () => {
     mockPins([{ id: 'a', lat: 37.5, lng: 127.5, thumbnailUrl: 'https://x/a.jpg' }]);
-    const { container } = renderWithProviders();
+    renderWithProviders();
     await screen.findByTestId('map-canvas-stub');
     capturedOnIdle?.({ minLat: 37.4, maxLat: 37.6, minLng: 127.4, maxLng: 127.6 }, { lat: 37.5, lng: 127.5 }, 10);
 
     capturedOnPinClick?.('a');
-    // alt=""인 장식용 이미지라 role="presentation"이 돼서 getByRole('img')로
-    // 못 찾는다(ARIA 사양상 정상 동작) — querySelector로 직접 찾는다.
-    await waitFor(() => expect(container.querySelector('img[src="https://x/a.jpg"]')).not.toBeNull());
+    // Drawer는 Portal로 document.body에 바로 렌더되므로 render()의 container
+    // 밖에 있다 — container.querySelector로는 못 찾고(통과는 하지만 실제로는
+    // MapPinList의 같은 썸네일을 잘못 찾는 것이었다), data-slot="drawer-content"
+    // 영역 안에서 찾아야 Drawer 자체가 열렸는지 검증된다. alt=""인 장식용
+    // 이미지라 role="presentation"이 돼서 getByRole('img')로도 못 찾는다.
+    await waitFor(() => {
+      const drawerContent = document.querySelector('[data-slot="drawer-content"]');
+      expect(drawerContent?.querySelector('img[src="https://x/a.jpg"]')).not.toBeNull();
+    });
   });
 });
