@@ -69,3 +69,24 @@ export function normalizeDiscoveryFilters(raw: RawDiscoveryFilters): NormalizedD
   if (aperture.max !== undefined) result.maxAperture = aperture.max;
   return result;
 }
+
+// 촬영월은 지도 탭 전용(갤러리 탭엔 없음 — PRD 기능4 Input에만 "월/계절",
+// 기능8엔 없음). discoveryFilterParsers와 분리해서 관리.
+export const monthParser = parseAsInteger;
+
+export const mapViewStateParsers = {
+  lat: parseAsFloat,
+  lng: parseAsFloat,
+  zoom: parseAsFloat,
+};
+
+export function normalizeMapFilters(
+  raw: RawDiscoveryFilters & { month: number | null },
+): NormalizedDiscoveryFilters & { month?: number } {
+  const base = normalizeDiscoveryFilters(raw);
+  const result: NormalizedDiscoveryFilters & { month?: number } = { ...base };
+  if (raw.month != null && Number.isInteger(raw.month) && raw.month >= 1 && raw.month <= 12) {
+    result.month = raw.month;
+  }
+  return result;
+}

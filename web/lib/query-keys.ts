@@ -13,5 +13,7 @@ export const queryKeys = {
   discovery: {
     gallery: (filters: NormalizedDiscoveryFilters) => ['discovery', 'gallery', filters] as const,
     equipment: ['discovery', 'equipment'] as const,
+    map: (bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number }, filters: unknown) =>
+      ['discovery', 'map', bounds, filters] as const,
   },
 };

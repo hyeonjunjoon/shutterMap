@@ -3,6 +3,7 @@ import { PrismaModule } from '../src/prisma/prisma.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { PhotoFilterService } from '../src/discovery/services/photo-filter.service';
 import { DiscoveryMapService } from '../src/discovery/services/discovery-map.service';
+import { R2StorageService } from '../src/photos/services/r2-storage.service';
 
 describe('DiscoveryMapService.getPins', () => {
   let prisma: PrismaService;
@@ -12,7 +13,11 @@ describe('DiscoveryMapService.getPins', () => {
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [PrismaModule],
-      providers: [PhotoFilterService, DiscoveryMapService],
+      providers: [
+        PhotoFilterService,
+        DiscoveryMapService,
+        { provide: R2StorageService, useValue: { buildPublicUrl: (key: string) => `https://cdn.test/${key}` } },
+      ],
     }).compile();
     prisma = moduleRef.get(PrismaService);
     service = moduleRef.get(DiscoveryMapService);
@@ -138,5 +143,24 @@ describe('DiscoveryMapService.getPins', () => {
 
     const pins = await service.getPins(worldBounds, {});
     expect(pins.find((p) => p.id === photo.id)).toBeDefined();
+  });
+
+  it('includes thumbnailUrl on each pin (built from thumbnailKey via R2StorageService), and still excludes HIDDEN-visibility photos at the same time', async () => {
+    const withThumb = await prisma.photo.create({
+      data: {
+        userId,
+        originalKey: 'k',
+        thumbnailKey: 'thumbnails/abc.jpg',
+        visibility: 'EXACT',
+      },
+    });
+    await prisma.$executeRaw`UPDATE "Photo" SET location = ST_SetSRID(ST_MakePoint(127.0, 37.0), 4326)::geography WHERE id = ${withThumb.id}`;
+
+    const hidden = await seedPhoto({ visibility: 'HIDDEN', lat: 37.0, lng: 127.0 });
+
+    const pins = await service.getPins(bounds, {});
+    const pin = pins.find((p) => p.id === withThumb.id);
+    expect(pin?.thumbnailUrl).toContain('thumbnails/abc.jpg');
+    expect(pins.find((p) => p.id === hidden.id)).toBeUndefined();
   });
 });
